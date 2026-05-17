@@ -1140,7 +1140,7 @@ export const hu: Dict = {
   'pet.composerTitle': 'Háziállatok — ébresztés, elrejtés vagy választás',
   'pet.composerMenuTitle': 'Háziállatok',
   'pet.composerMenuHint': 'tipp: írd be /pet a váltáshoz',
-  'pet.composerOpenSettings': 'Testreszabás a Beállításokban',
+  'pet.composerOpenSettings': 'Háziállatok kezelése',
   'pet.welcomeTeaserTitle': 'Fogadj be egy háziállatot',
   'pet.welcomeTeaserBody': 'Egy apró lebegő társ, aki veled van.',
   'pet.welcomeTeaserCta': 'Választok egyet',

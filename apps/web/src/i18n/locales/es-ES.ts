@@ -1029,7 +1029,7 @@ export const esES: Dict = {
   'pet.composerTitle': 'Mascotas — despertar, esconder o elegir',
   'pet.composerMenuTitle': 'Mascotas',
   'pet.composerMenuHint': 'tip: escribe /pet para alternar',
-  'pet.composerOpenSettings': 'Personalizar en Ajustes',
+  'pet.composerOpenSettings': 'Administrar mascotas',
   'pet.welcomeTeaserTitle': 'Adopta una mascota',
   'pet.welcomeTeaserBody': 'Un compañerito que flota sobre tu workspace.',
   'pet.welcomeTeaserCta': 'Elegir',

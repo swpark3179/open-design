@@ -1078,7 +1078,7 @@ export const de: Dict = {
   'pet.composerTitle': 'Haustiere — wecken, verstecken oder auswählen',
   'pet.composerMenuTitle': 'Haustiere',
   'pet.composerMenuHint': 'Tipp: tippe /pet zum Umschalten',
-  'pet.composerOpenSettings': 'In den Einstellungen anpassen',
+  'pet.composerOpenSettings': 'Haustiere verwalten',
   'pet.welcomeTeaserTitle': 'Adoptiere ein Haustier',
   'pet.welcomeTeaserBody': 'Ein kleiner schwebender Begleiter für deinen Workspace.',
   'pet.welcomeTeaserCta': 'Eines wählen',
