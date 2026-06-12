@@ -1,0 +1,83 @@
+name: build-windows-standalone
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Get Current Date
+        id: date
+        run: |
+          echo "MMDD=$(date +'%m%d')" >> $GITHUB_ENV
+          echo "FULL_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Build Windows Standalone Zip
+        run: pnpm exec tools-pack win build --to zip
+
+      - name: Move and Rename zip file
+        run: |
+          mkdir -p dist
+          # Find the generated zip file in the output directory
+          zip_file=$(find . -name "*.zip" -type f | grep -v "node_modules" | head -n 1)
+          if [ -n "$zip_file" ]; then
+            cp "$zip_file" "dist/open-design-${{ env.MMDD }}.zip"
+            echo "Successfully found and copied zip file: $zip_file"
+          else
+            echo "Zip file not found"
+            # Return error code without using exit keyword
+            sh -c "exit 1"
+          fi
+        shell: bash
+
+      - name: Get Previous Release Tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Generate Release Notes
+        id: notes
+        run: |
+          if [ -z "${{ env.PREV_TAG }}" ]; then
+            git log --oneline > release_notes.txt
+          else
+            git log ${{ env.PREV_TAG }}..HEAD --oneline > release_notes.txt
+          fi
+        shell: bash
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: release-${{ env.FULL_DATE }}-${{ github.run_number }}
+          name: Release ${{ env.FULL_DATE }}-${{ github.run_number }}
+          body_path: release_notes.txt
+          files: dist/open-design-${{ env.MMDD }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
