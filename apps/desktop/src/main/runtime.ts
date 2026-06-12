@@ -821,6 +821,33 @@ function createPendingHtml(): string {
         max-width: 100%;
         width: auto;
       }
+      .boot-stage {
+        bottom: 56px;
+        color: #7a838a;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 13px;
+        left: 0;
+        letter-spacing: 0.02em;
+        position: fixed;
+        right: 0;
+        text-align: center;
+        transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1);
+        user-select: none;
+      }
+      .boot-stage-swapping {
+        opacity: 0;
+        transition-duration: 140ms;
+      }
+      .boot-dots .dot {
+        animation: boot-dot 1.4s cubic-bezier(0.23, 1, 0.32, 1) infinite;
+        display: inline-block;
+      }
+      .boot-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+      .boot-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+      @keyframes boot-dot {
+        0%, 60%, 100% { opacity: 0.25; }
+        30% { opacity: 1; }
+      }
     </style>
   </head>
   <body>
@@ -832,6 +859,9 @@ function createPendingHtml(): string {
       disablepictureinpicture
       src="${SPLASH_VIDEO_DATA_URL}"
     ></video>
+    <div class="boot-stage" id="boot-stage" aria-live="polite">
+      <span id="boot-stage-text">${SPLASH_STAGE_LABELS.starting}</span><span class="boot-dots" aria-hidden="true"><span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></span>
+    </div>
     <script>
       (function () {
         var video = document.getElementById("splash");
@@ -844,9 +874,50 @@ function createPendingHtml(): string {
         video.addEventListener("loadeddata", play);
         play();
       })();
+      window.__odSplashSetStage = function (label) {
+        var wrap = document.getElementById("boot-stage");
+        var text = document.getElementById("boot-stage-text");
+        if (!wrap || !text || text.textContent === label) return;
+        wrap.classList.add("boot-stage-swapping");
+        setTimeout(function () {
+          text.textContent = label;
+          wrap.classList.remove("boot-stage-swapping");
+        }, 140);
+      };
     </script>
   </body>
 </html>`)}`;
+}
+
+/**
+ * Boot phases surfaced as a muted status line under the splash logo. The cold
+ * boot on a slow machine can hold the splash's settled final frame for many
+ * seconds; the stage text plus the continuously pulsing dots are what tells
+ * the user the app is working, not hung. Stage transitions follow the repo
+ * animation philosophy: 140ms ease-out fade out, 200ms ease-out fade in.
+ */
+export type SplashBootStage = "starting" | "engine" | "interface" | "workspace";
+
+const SPLASH_STAGE_LABELS: Record<SplashBootStage, string> = {
+  starting: "Starting Open Design",
+  engine: "Starting the local engine",
+  interface: "Preparing the interface",
+  workspace: "Opening your workspace",
+};
+
+/**
+ * Update the splash status line. Safe to call with a destroyed/absent window
+ * and idempotent for repeated stages, so callers can fire-and-forget at each
+ * boot phase boundary (packaged sidecar spawns, runtime reveal gate).
+ */
+export function setSplashStage(splash: BrowserWindow | null, stage: SplashBootStage): void {
+  if (splash == null || splash.isDestroyed()) return;
+  void splash.webContents
+    .executeJavaScript(
+      `window.__odSplashSetStage && window.__odSplashSetStage(${JSON.stringify(SPLASH_STAGE_LABELS[stage])});`,
+      true,
+    )
+    .catch(() => undefined);
 }
 
 export type SplashWindowHandle = {
@@ -1857,6 +1928,9 @@ export async function createDesktopRuntime(options: DesktopRuntimeOptions): Prom
   const revealWhenReady = async (): Promise<void> => {
     if (revealing || revealed) return;
     revealing = true;
+    // The web bundle is loading in the hidden main window from here on; let
+    // the splash status line reflect that final phase while we poll for mount.
+    setSplashStage(splash, "workspace");
     const deadline = Date.now() + WEB_MOUNT_REVEAL_TIMEOUT_MS;
     while (!stopped && !window.isDestroyed() && Date.now() < deadline) {
       const mounted = await window.webContents
