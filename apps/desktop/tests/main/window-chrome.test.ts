@@ -4,11 +4,31 @@ import { describe, expect, test } from "vitest";
 
 const runtimeSource = readFileSync(new URL("../../src/main/runtime.ts", import.meta.url), "utf8");
 
+/**
+ * runtime.ts constructs three BrowserWindows (brand splash, desktop pet, main
+ * app window), and the splash shares the `title: "Open Design"` /
+ * `width: 1280` markers with the main app window. Scope matching to a single
+ * constructor's options literal — a non-greedy whole-source regex anchors on
+ * the FIRST `new BrowserWindow({` and silently locks onto the splash block.
+ * The main app window is the only one that sets both the app title and a
+ * preload script; requiring exactly one match keeps a future fourth window
+ * from being checked ambiguously.
+ */
+function mainAppWindowOptions(): string {
+  const optionBlocks = runtimeSource
+    .split("new BrowserWindow({")
+    .slice(1)
+    .map((block) => block.slice(0, block.indexOf("});")));
+  const mainBlocks = optionBlocks.filter(
+    (block) => block.includes('title: "Open Design",') && block.includes("preload: preloadPath,"),
+  );
+  expect(mainBlocks).toHaveLength(1);
+  return mainBlocks[0] ?? "";
+}
+
 describe("desktop BrowserWindow chrome options", () => {
   test("hides Electron's native menu bar in the Windows/Linux app window", () => {
-    const browserWindowBlock = /new BrowserWindow\(\{([\s\S]*?)title: "Open Design",([\s\S]*?)webPreferences:/.exec(runtimeSource)?.[0] ?? "";
-
-    expect(browserWindowBlock).toContain("autoHideMenuBar: true");
+    expect(mainAppWindowOptions()).toContain("autoHideMenuBar: true");
   });
 
   test("keeps macOS traffic-light controls clear of the web tab strip", () => {
@@ -19,8 +39,6 @@ describe("desktop BrowserWindow chrome options", () => {
   });
 
   test("keeps the visible renderer responsive when Chromium misclassifies visibility", () => {
-    const browserWindowBlock = /new BrowserWindow\(\{([\s\S]*?)title: "Open Design",([\s\S]*?)width: 1280,/.exec(runtimeSource)?.[0] ?? "";
-
-    expect(browserWindowBlock).toContain("backgroundThrottling: false");
+    expect(mainAppWindowOptions()).toContain("backgroundThrottling: false");
   });
 });
