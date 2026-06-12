@@ -33,8 +33,8 @@ jobs:
       - name: Get Current Date
         id: date
         run: |
-          echo "MMDD=$(date +'%m%d')" >> $GITHUB_ENV
-          echo "FULL_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+          echo "MMDD=$(date +'%m%d')" >> "$GITHUB_ENV"
+          echo "FULL_DATE=$(date +'%Y-%m-%d')" >> "$GITHUB_ENV"
         shell: bash
 
       - name: Build Windows Standalone Zip
@@ -59,7 +59,7 @@ jobs:
         id: prev_tag
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_ENV
+          echo "PREV_TAG=$PREV_TAG" >> "$GITHUB_ENV"
         shell: bash
 
       - name: Generate Release Notes
