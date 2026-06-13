@@ -457,6 +457,13 @@ export async function startPackagedSidecars(
     webSidecarEntry: string | null;
     webStandaloneRoot: string | null;
     webOutputMode: PackagedWebOutputMode;
+    /**
+     * Boot-progress hook, fired just before each sidecar child is spawned.
+     * The Electron entry forwards it to the splash status line so a slow
+     * cold boot shows which phase is underway instead of a frozen frame;
+     * headless callers omit it.
+     */
+    onPhase?: (phase: "daemon" | "web") => void;
   },
 ): Promise<PackagedSidecarHandle> {
   await mkdir(paths.namespaceRoot, { recursive: true });
@@ -472,6 +479,7 @@ export async function startPackagedSidecars(
   const children: ManagedSidecarChild[] = [];
 
   try {
+    options.onPhase?.("daemon");
     const daemon = await spawnSidecarChild({
       app: APP_KEYS.DAEMON,
       entryPath: options.daemonSidecarEntry ?? resolveSidecarEntry("@open-design/daemon", "sidecar"),
@@ -503,6 +511,7 @@ export async function startPackagedSidecars(
     );
     if (daemonStatus.url == null) throw new Error("daemon did not report a URL");
 
+    options.onPhase?.("web");
     const web = await spawnSidecarChild({
       app: APP_KEYS.WEB,
       entryPath: options.webSidecarEntry ?? resolveSidecarEntry("@open-design/web", "sidecar"),
