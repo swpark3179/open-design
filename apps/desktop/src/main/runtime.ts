@@ -906,18 +906,71 @@ const SPLASH_STAGE_LABELS: Record<SplashBootStage, string> = {
 };
 
 /**
- * Update the splash status line. Safe to call with a destroyed/absent window
- * and idempotent for repeated stages, so callers can fire-and-forget at each
- * boot phase boundary (packaged sidecar spawns, runtime reveal gate).
+ * Narrow view of the splash window that the stage updater needs. A real
+ * `BrowserWindow` satisfies this structurally; tests pass a mock so the
+ * load-ready/replay logic is exercisable without a live Electron renderer.
  */
-export function setSplashStage(splash: BrowserWindow | null, stage: SplashBootStage): void {
-  if (splash == null || splash.isDestroyed()) return;
+export type SplashStageSurface = {
+  isDestroyed(): boolean;
+  webContents: {
+    executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
+    once(event: "did-finish-load", listener: () => void): void;
+  };
+};
+
+type SplashStageState = { ready: boolean; pending: SplashBootStage | null };
+
+// Per-splash readiness + the latest stage requested before the page finished
+// loading. Keyed weakly so a closed splash is collected without bookkeeping.
+const splashStageState = new WeakMap<SplashStageSurface, SplashStageState>();
+
+function applySplashStage(splash: SplashStageSurface, stage: SplashBootStage): void {
   void splash.webContents
     .executeJavaScript(
       `window.__odSplashSetStage && window.__odSplashSetStage(${JSON.stringify(SPLASH_STAGE_LABELS[stage])});`,
       true,
     )
     .catch(() => undefined);
+}
+
+/**
+ * Arm load-ready tracking for a freshly created splash. MUST be called before
+ * `loadURL` so the `did-finish-load` listener cannot miss the event. Until the
+ * splash data-URL has loaded (and defined `window.__odSplashSetStage`), stage
+ * updates are stashed rather than executed against a renderer that has no
+ * setter yet — otherwise the first update (the daemon phase, fired right after
+ * window creation on a cold boot) is silently dropped. The latest stashed
+ * stage is replayed once the page reports it has loaded.
+ */
+export function registerSplashStageTracking(splash: SplashStageSurface): void {
+  const state: SplashStageState = { ready: false, pending: null };
+  splashStageState.set(splash, state);
+  splash.webContents.once("did-finish-load", () => {
+    state.ready = true;
+    if (state.pending != null) {
+      const stage = state.pending;
+      state.pending = null;
+      applySplashStage(splash, stage);
+    }
+  });
+}
+
+/**
+ * Update the splash status line. Safe to call with a destroyed/absent window
+ * and idempotent for repeated stages, so callers can fire-and-forget at each
+ * boot phase boundary (packaged sidecar spawns, runtime reveal gate). Stage
+ * updates that arrive before the splash page has loaded are deferred and
+ * replayed on load (see `registerSplashStageTracking`); a window with no
+ * tracking registered (e.g. an unmanaged test surface) applies immediately.
+ */
+export function setSplashStage(splash: SplashStageSurface | null, stage: SplashBootStage): void {
+  if (splash == null || splash.isDestroyed()) return;
+  const state = splashStageState.get(splash);
+  if (state == null || state.ready) {
+    applySplashStage(splash, stage);
+    return;
+  }
+  state.pending = stage;
 }
 
 export type SplashWindowHandle = {
@@ -959,6 +1012,10 @@ export function createSplashWindow(): SplashWindowHandle {
       sandbox: true,
     },
   });
+  // Arm stage tracking before loadURL so a stage update fired before the
+  // page loads is deferred and replayed rather than dropped (see
+  // `registerSplashStageTracking`).
+  registerSplashStageTracking(splash);
   void splash.loadURL(createPendingHtml());
   return { startedAt, window: splash };
 }
