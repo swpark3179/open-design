@@ -56,7 +56,19 @@ export function formatStars(count: number): string {
 
 export const GITHUB_REPO_URL = REPO;
 
-export function useGithubStars(): number | null {
+export interface GithubStarsState {
+  count: number | null;
+  // True when the daemon reports the lookup is disabled (offline/intranet
+  // build, HTTP 204). Consumers should hide the star UI entirely instead of
+  // rendering a stale fallback count.
+  disabled: boolean;
+}
+
+// Module-scoped so the disabled signal is fetched at most once per page load.
+let remoteDisabled = false;
+
+export function useGithubStars(): GithubStarsState {
+  const [disabled, setDisabled] = useState<boolean>(remoteDisabled);
   const [count, setCount] = useState<number | null>(() => {
     if (memoryCache) return memoryCache.count;
     const persisted = readPersistedCache();
@@ -65,6 +77,10 @@ export function useGithubStars(): number | null {
   });
 
   useEffect(() => {
+    if (remoteDisabled) {
+      setDisabled(true);
+      return;
+    }
     const now = Date.now();
     const cached = memoryCache ?? readPersistedCache();
     if (cached && now - cached.ts < CACHE_TTL_MS) {
@@ -78,6 +94,12 @@ export function useGithubStars(): number | null {
         const res = await fetch(API, {
           signal: ctrl.signal,
         });
+        if (res.status === 204) {
+          // Offline/intranet build: the daemon never queries GitHub.
+          remoteDisabled = true;
+          setDisabled(true);
+          return;
+        }
         if (!res.ok) return;
         const data = (await res.json()) as Partial<OpenDesignGithubRepoResponse>;
         if (typeof data.stargazers_count !== 'number') return;
@@ -96,5 +118,5 @@ export function useGithubStars(): number | null {
     return () => ctrl.abort();
   }, []);
 
-  return count;
+  return { count, disabled };
 }

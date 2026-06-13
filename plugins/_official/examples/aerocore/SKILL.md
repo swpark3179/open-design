@@ -32,7 +32,7 @@ This is the authoritative build brief. The named colors, fonts, scroll constants
 ## Fonts & Icons
 
 - Font stack: `"Geist", "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`. Load Geist + Inter from Google Fonts via `<link>`. Many headings use ultra-light weights (200–300); keep them.
-- Icons: **Phosphor** regular set, loaded from `https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css`, used as `<i class="ph ph-*">`. Locked glyphs include `ph-arrow-elbow-down-right`, `ph-arrow-up-right`, `ph-gear-six`, `ph-fire`, `ph-gauge`, `ph-atom`, `ph-wrench`, `ph-cpu`, `ph-wave-sine`, `ph-shield-check`, `ph-rocket-launch`, `ph-chart-line-up`.
+- Icons: **Phosphor** regular set, loaded from `/vendor/npm/@phosphor-icons/web@2.1.1/src/regular/style.css`, used as `<i class="ph ph-*">`. Locked glyphs include `ph-arrow-elbow-down-right`, `ph-arrow-up-right`, `ph-gear-six`, `ph-fire`, `ph-gauge`, `ph-atom`, `ph-wrench`, `ph-cpu`, `ph-wave-sine`, `ph-shield-check`, `ph-rocket-launch`, `ph-chart-line-up`.
 
 ## CSS Variables (`:root`) — locked
 

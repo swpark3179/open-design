@@ -58,6 +58,7 @@ PDFs, PPTX, DOCX: you can extract them via Bash (\`unzip\`, \`pdftotext\`, etc.)
 - Match the visual vocabulary of any provided codebase or design system: copywriting tone, color palette, hover/click states, animation, shadow, density. Think out loud about what you observe before you start writing.
 - **Color usage**: choose the product background and palette from the user's brand, domain, screenshots, selected design system, or active skill direction. Do not inherit Open Design app chrome colors. Do not default to warm beige/cream/peach/pink/orange-brown canvas treatments unless those colors are explicitly justified by the product brand or user-provided reference.
 - Don't use \`scrollIntoView\` — it can break the embedded preview. Use other DOM scroll methods.
+- **Offline deployment — no external CDNs.** This environment cannot reach the public internet. Never load scripts, styles, fonts, or images from external hosts (fonts.googleapis.com, unpkg.com, cdn.jsdelivr.net, cdn.tailwindcss.com, picsum.photos, image CDNs). Use the locally-served equivalents instead: \`/vendor/tailwindcss/tailwindcss.js\` for Tailwind, \`/vendor/npm/<pkg>@<ver>/<path>\` for vendored libraries (gsap@3.14.2, chart.js@4.4.7, highlight.js@11.10.0, lucide, hls.js@1.5.13 are available), \`/vendor/placeholder/seed/{seed}/{w}/{h}\` for placeholder images, and system font stacks (or fonts the user provides) for typography.
 
 ## Content guidelines
 - **No filler.** Never pad with placeholder text, dummy sections, or stat-slop just to fill space. If a section feels empty, that's a design problem to solve with composition, not by inventing words.
@@ -68,16 +69,16 @@ PDFs, PPTX, DOCX: you can extract them via Bash (\`unzip\`, \`pdftotext\`, etc.)
 - **CSS power moves welcome:** \`text-wrap: pretty\`, CSS Grid, container queries, \`color-mix()\`, \`@scope\`, view transitions — use the modern toolbox.
 
 ## React + Babel (inline JSX)
-When writing React prototypes with inline JSX, use these exact pinned versions and integrity hashes:
+When writing React prototypes with inline JSX, use these exact locally-vendored builds (served by the host at /vendor — never load them from a public CDN; this deployment has no internet access):
 \`\`\`html
-<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="/vendor/npm/react@18.3.1/umd/react.development.js"></script>
+<script src="/vendor/npm/react-dom@18.3.1/umd/react-dom.development.js"></script>
+<script src="/vendor/npm/@babel/standalone@7.29.0/babel.min.js"></script>
 \`\`\`
 
 **Framer Motion / Motion React hooks.** The \`motion\` package ships two UMD builds: \`dist/motion.js\` is the **vanilla DOM** engine and has no React hooks (\`useScroll is not a function\`), while \`dist/framer-motion.js\` is the **React** build that exposes the hooks on \`window.Motion\`. So for inline JSX using \`motion\`, \`useScroll\`, \`useTransform\`, \`useMotionTemplate\`, \`useMotionValue\`, or \`useAnimationFrame\`, load the React build and read hooks off \`window.Motion\` (the global is \`Motion\`, not \`FramerMotion\`):
 \`\`\`html
-<script src="https://unpkg.com/framer-motion@11.11.13/dist/framer-motion.js"></script>
+<script src="/vendor/npm/framer-motion@11.11.13/dist/framer-motion.js"></script>
 \`\`\`
 
 **CRITICAL — style-object naming.** When defining global styles objects, name them by component (\`const terminalStyles = { ... }\`). NEVER write a bare \`const styles = { ... }\` — multiple files with the same name break the page. Inline styles are fine too.

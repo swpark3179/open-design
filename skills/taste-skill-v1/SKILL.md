@@ -147,7 +147,7 @@ To guarantee a premium, non-generic output, you MUST strictly avoid these common
 * **NO Filler Words:** Avoid AI copywriting clichés like "Elevate", "Seamless", "Unleash", or "Next-Gen". Use concrete verbs.
 
 ### External Resources & Components
-* **NO Broken Unsplash Links:** Do not use Unsplash. Use absolute, reliable placeholders like `https://picsum.photos/seed/{random_string}/800/600` or SVG UI Avatars.
+* **NO Broken Unsplash Links:** Do not use Unsplash. Use absolute, reliable placeholders like `/vendor/placeholder/seed/{random_string}/800/600` or SVG UI Avatars.
 * **shadcn/ui Customization:** You may use `shadcn/ui`, but NEVER in its generic default state. You MUST customize the radii, colors, and shadows to match the high-end project aesthetic.
 * **Production-Ready Cleanliness:** Code must be extremely clean, visually striking, memorable, and meticulously refined in every detail.
 

@@ -77,9 +77,14 @@ describe("copyBundledResourceTrees", () => {
       await mkdir(join(workspaceRoot, "plugins", "_official", "sample"), {
         recursive: true,
       });
+      await mkdir(join(workspaceRoot, "plugins", "community", "sample"), {
+        recursive: true,
+      });
       await mkdir(join(workspaceRoot, "plugins", "registry", "community"), {
         recursive: true,
       });
+      // Offline/intranet fork: locally-vendored CDN assets ship with the bundle.
+      await mkdir(join(workspaceRoot, "vendor", "tailwindcss"), { recursive: true });
       await mkdir(join(workspaceRoot, "assets", "frames"), { recursive: true });
       await mkdir(join(workspaceRoot, "assets", "community-pets", "sample"), {
         recursive: true,
@@ -101,6 +106,16 @@ describe("copyBundledResourceTrees", () => {
       await writeFile(
         join(workspaceRoot, "plugins", "_official", "sample", "open-design.json"),
         "{\"id\":\"sample\"}\n",
+        "utf8",
+      );
+      await writeFile(
+        join(workspaceRoot, "plugins", "community", "sample", "open-design.json"),
+        "{\"id\":\"sample-community\"}\n",
+        "utf8",
+      );
+      await writeFile(
+        join(workspaceRoot, "vendor", "tailwindcss", "tailwindcss.js"),
+        "// vendored\n",
         "utf8",
       );
       await writeFile(communityRegistryPath, "{\"plugins\":[]}\n", "utf8");
@@ -140,6 +155,15 @@ describe("copyBundledResourceTrees", () => {
           "utf8",
         ),
       ).resolves.toBe("{\"id\":\"sample\"}\n");
+      await expect(
+        readFile(
+          join(resourceRoot, "plugins", "community", "sample", "open-design.json"),
+          "utf8",
+        ),
+      ).resolves.toBe("{\"id\":\"sample-community\"}\n");
+      await expect(
+        readFile(join(resourceRoot, "vendor", "tailwindcss", "tailwindcss.js"), "utf8"),
+      ).resolves.toBe("// vendored\n");
       await expect(
         readFile(
           join(

@@ -2514,6 +2514,23 @@ describe("desktop updater", () => {
     }
   });
 
+  it("keeps updates disabled by default for packaged builds (offline/intranet fork)", () => {
+    const root = makeRoot();
+    try {
+      const config = resolveDesktopUpdaterConfig({
+        currentVersion: "1.2.3",
+        downloadRoot: root,
+        env: {},
+        source: SIDECAR_SOURCES.PACKAGED,
+      });
+
+      expect(config.enabled).toBe(false);
+      expect(config.autoCheck).toBe(false);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   it("does not offer an arm64-only mac package to x64 clients", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture();

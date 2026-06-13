@@ -73,9 +73,9 @@ const GH_AUTH_TIMEOUT_MS = 10_000;
 const MAX_PROCESS_OUTPUT_CHARS = 8_000;
 const UI_KIT_ENTRY_GUIDANCE = [
   '- Claude-style UI-kit entry skeleton for direct JSX kits:',
-  '  - `<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>`',
-  '  - `<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>`',
-  '  - `<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>`',
+  '  - `<script src="/vendor/npm/react@18.3.1/umd/react.development.js"></script>`',
+  '  - `<script src="/vendor/npm/react-dom@18.3.1/umd/react-dom.development.js"></script>`',
+  '  - `<script src="/vendor/npm/@babel/standalone@7.29.0/babel.min.js"></script>`',
   '  - `<link rel="stylesheet" href="../../colors_and_type.css">`',
   '  - `<div id="root"></div>`',
   '  - Load role components from `components/*.jsx` with `<script type="text/babel" src="components/ComponentName.jsx"></script>`.',

@@ -52,7 +52,9 @@ describe('buildReactComponentSrcdoc', () => {
       title: 'App',
     });
     expect(doc).toContain('<!doctype html>');
-    expect(doc).toContain('react@18/umd/react.development.js');
+    // Offline/intranet build: the React runtime loads from the locally
+    // vendored /vendor tree instead of unpkg.
+    expect(doc).toContain('/vendor/npm/react@18.3.1/umd/react.development.js');
     expect(doc).toContain('@babel/standalone');
     expect(doc).toContain('artifact.tsx');
     expect(doc).toContain('sandboxed iframe');

@@ -36,7 +36,6 @@ import {
   DESKTOP_UPDATE_CHANNELS,
   DESKTOP_UPDATE_MODES,
   DESKTOP_UPDATE_STATES,
-  SIDECAR_SOURCES,
   type DesktopUpdateAction,
   type DesktopUpdateArtifactSnapshot,
   type DesktopUpdateCacheLifecycleSummary,
@@ -387,7 +386,10 @@ function defaultPollIntervalMs(channel: DesktopUpdateChannel): number {
 export function resolveDesktopUpdaterConfig(input: DesktopUpdaterConfigInput): DesktopUpdaterConfig {
   const env = input.env ?? process.env;
   const mode = normalizeMode(env[DESKTOP_UPDATE_ENV.MODE], input.mode ?? DESKTOP_UPDATE_MODES.PACKAGE_LAUNCHER);
-  const defaultEnabled = input.source === SIDECAR_SOURCES.PACKAGED;
+  // Offline/intranet fork: packaged builds must not poll the public release
+  // origin (releases.open-design.ai). Auto-update stays opt-in via
+  // OD_UPDATE_ENABLED=1 (upstream default was enabled for packaged builds).
+  const defaultEnabled = false;
   const enabled = isTruthyEnv(env[DESKTOP_UPDATE_ENV.ENABLED]) ?? defaultEnabled;
   const runtimeBase = input.runtimeBase == null ? process.cwd() : input.runtimeBase;
   const downloadRoot = normalizeDownloadRoot(

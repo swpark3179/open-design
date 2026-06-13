@@ -19,7 +19,7 @@ Produce a premium **Conference Dashboard** with a **liquid glassmorphism** aesth
 
 This is the authoritative build brief. Follow it exactly — the named colors, radii, video URLs, avatar sources, and animations are locked.
 
-**Avatars (critical):** `example.html` already ships every avatar as an **inlined `data:image/svg+xml;base64,…` URI** — keep those exactly as they are. Do **not** replace them with `i.pravatar.cc`, `api.dicebear.com`, or any other remote avatar URL: external avatar hosts rate-limit or 403 inside the sandbox and render as broken images. When you copy the seed, the avatars come with it; only swap an avatar if the user supplies a real image, and prefer a data URI over a remote URL. Screen-share thumbnails may keep `https://picsum.photos/seed/screen1..4/300/200`.
+**Avatars (critical):** `example.html` already ships every avatar as an **inlined `data:image/svg+xml;base64,…` URI** — keep those exactly as they are. Do **not** replace them with `i.pravatar.cc`, `api.dicebear.com`, or any other remote avatar URL: external avatar hosts rate-limit or 403 inside the sandbox and render as broken images. When you copy the seed, the avatars come with it; only swap an avatar if the user supplies a real image, and prefer a data URI over a remote URL. Screen-share thumbnails may keep `/vendor/placeholder/seed/screen1..4/300/200`.
 
 ## Stack
 
@@ -103,7 +103,7 @@ Card base: `padding:28px 20px`, flex column, `border-radius:40px`, hover `transl
 ### Card 8 — Screen Share (solid card-alt; gradient `linear-gradient(to bottom,#f4f4f4 0%, #ffffff 50%, #ffffff 100%)`)
 - Header row of two pill chips (justify start, gap 8): "Screen Share" (blue text `#3b82f6`) and "0:30" (black text). Both white pills, `padding:6px 14px; font-size:0.75rem; box-shadow:0 2px 8px rgba(0,0,0,0.06)`.
 - Horizontal scroll row (`overflow-x:auto; gap:12px; margin: 20px -20px 0; padding:0 20px 16px; hide scrollbar; cursor:grab; drag-to-scroll`):
-  - 4 thumbnails 160×100, `border-radius:16px`, backgrounds `https://picsum.photos/seed/screen1..4/300/200`.
+  - 4 thumbnails 160×100, `border-radius:16px`, backgrounds `/vendor/placeholder/seed/screen1..4/300/200`.
   - On thumbnail #2: bottom-right floating tag with 24px avatar `u=alice_av` + orange `#e05e36` pill labeled "Alice" (white text 0.65rem, 2px 8px, radius 100).
 - Footer: 2 avatars `u=13,14` + badge "8" (background `#F3F3F3`).
 

@@ -14,6 +14,7 @@
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { isOfflineMode } from './offline-mode.js';
 
 export const PLUGIN_PREVIEWS_ROUTE = '/api/plugin-previews';
 
@@ -79,12 +80,58 @@ export function bakedPreviewBlock(id: string, dir: string): BakedPreviewBlock | 
   const envBase = process.env.OD_PLUGIN_PREVIEWS_BASE_URL?.replace(/\/+$/, '');
   const onDisk =
     existsSync(path.join(dir, entry.video)) && existsSync(path.join(dir, entry.poster));
+  // Offline/intranet builds never point the gallery at the public R2 origin:
+  // without an explicit base override or on-disk clips, skip the bake so the
+  // card falls back to the live-iframe path instead of broken media URLs.
+  if (!envBase && !onDisk && isOfflineMode()) return null;
   const base = envBase || (onDisk ? PLUGIN_PREVIEWS_ROUTE : DEFAULT_PUBLIC_BASE);
   return {
     poster: `${base}/${entry.poster}`,
     video: `${base}/${entry.video}`,
     ...(typeof entry.holdMs === 'number' ? { holdMs: entry.holdMs } : {}),
   };
+}
+
+// Offline/intranet: bundled plugin manifests carry `od.preview` poster/video
+// URLs on the public jsdelivr GitHub CDN (cdn.jsdelivr.net/gh/<repo>@<ref>/
+// <path>/<plugin-folder>/<file>). The referenced files ship inside the plugin
+// folder itself, so when offline we rewrite those URLs to the daemon's
+// same-origin `/api/plugins/:id/asset/<rel>` route. URLs that don't embed the
+// plugin id (nothing local to serve) are left untouched — they were equally
+// unreachable before the rewrite.
+const JSDELIVR_GH_RE = /^https:\/\/cdn\.jsdelivr\.net\/gh\/[^/]+\/[^/@]+@[^/]+\//i;
+
+function localizedPreviewMediaUrl(id: string, value: unknown): unknown {
+  if (typeof value !== 'string' || !JSDELIVR_GH_RE.test(value)) return value;
+  const marker = `/${id}/`;
+  const at = value.indexOf(marker);
+  if (at === -1) return value;
+  const rel = value.slice(at + marker.length);
+  if (!rel || rel.includes('..')) return value;
+  return `/api/plugins/${encodeURIComponent(id)}/asset/${rel}`;
+}
+
+export function localizePluginPreviewMedia<T extends { id: string; manifest?: unknown }>(
+  records: T[],
+): T[] {
+  if (!isOfflineMode()) return records;
+  return records.map((rec) => {
+    const manifest = (rec.manifest ?? {}) as Record<string, unknown>;
+    const od = manifest.od as Record<string, unknown> | undefined;
+    const preview = od?.preview as Record<string, unknown> | undefined;
+    if (!od || !preview || typeof preview !== 'object') return rec;
+    let changed = false;
+    const nextPreview: Record<string, unknown> = { ...preview };
+    for (const key of ['poster', 'video', 'gif', 'audio']) {
+      const next = localizedPreviewMediaUrl(rec.id, nextPreview[key]);
+      if (next !== nextPreview[key]) {
+        nextPreview[key] = next;
+        changed = true;
+      }
+    }
+    if (!changed) return rec;
+    return { ...rec, manifest: { ...manifest, od: { ...od, preview: nextPreview } } };
+  });
 }
 
 // Attach the baked clip under `manifest.od.bakedPreview` (a SEPARATE field —

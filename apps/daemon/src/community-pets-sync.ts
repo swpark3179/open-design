@@ -11,6 +11,7 @@ import { mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { resolveCodexPetsRoot } from './codex-pets.js';
+import { isOfflineMode } from './offline-mode.js';
 
 const PETSHARE_BASE = 'https://ihzwckyzfcuktrljwpha.supabase.co/functions/v1/petshare';
 const HATCHERY_LIST = 'https://j20.nz/hatchery/api/pets.json';
@@ -241,6 +242,21 @@ async function runPool<T, R>(
 }
 
 export async function syncCommunityPets(options: SyncOptions = {}): Promise<SyncResult> {
+  // Offline/intranet builds: the public pet catalogs (Supabase petshare +
+  // j20 hatchery) are unreachable by policy. Return a zero-work result with
+  // an actionable message instead of attempting external fetches; the
+  // bundled pets under assets/community-pets keep the gallery populated.
+  if (isOfflineMode()) {
+    return {
+      wrote: 0,
+      skipped: 0,
+      failed: 0,
+      total: 0,
+      rootDir: resolveCodexPetsRoot(),
+      errors: ['Community pet sync is disabled in offline mode (set OD_OFFLINE=0 to re-enable).'],
+    };
+  }
+
   const sourceArg = options.source ?? 'all';
   const sources = new Set<'petshare' | 'hatchery'>();
   if (sourceArg === 'all' || sourceArg === 'petshare') sources.add('petshare');

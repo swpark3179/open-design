@@ -2770,9 +2770,9 @@ function renderComponentPreviewHtml(
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(title)} Interface</title>
-  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+  <script src="/vendor/npm/react@18.3.1/umd/react.development.js"></script>
+  <script src="/vendor/npm/react-dom@18.3.1/umd/react-dom.development.js"></script>
+  <script src="/vendor/npm/@babel/standalone@7.29.0/babel.min.js"></script>
   <link rel="stylesheet" href="../../colors_and_type.css" />
   <style>
     :root {

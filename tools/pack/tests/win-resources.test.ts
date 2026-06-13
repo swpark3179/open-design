@@ -37,12 +37,27 @@ async function createWorkspaceFixture(workspaceRoot: string): Promise<void> {
     "{\"id\":\"sample\"}\n",
     "utf8",
   );
+  await mkdir(join(workspaceRoot, "plugins", "community", "sample"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(workspaceRoot, "plugins", "community", "sample", "open-design.json"),
+    "{\"id\":\"sample-community\"}\n",
+    "utf8",
+  );
   await mkdir(join(workspaceRoot, "plugins", "registry", "community"), {
     recursive: true,
   });
   await writeFile(
     join(workspaceRoot, "plugins", "registry", "community", "open-design-marketplace.json"),
     "{\"plugins\":[]}\n",
+    "utf8",
+  );
+  // Offline/intranet fork: locally-vendored CDN assets ship with the bundle.
+  await mkdir(join(workspaceRoot, "vendor", "tailwindcss"), { recursive: true });
+  await writeFile(
+    join(workspaceRoot, "vendor", "tailwindcss", "tailwindcss.js"),
+    "// vendored\n",
     "utf8",
   );
   await mkdir(join(workspaceRoot, "assets", "frames"), { recursive: true });

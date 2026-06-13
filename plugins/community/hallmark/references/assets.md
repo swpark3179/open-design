@@ -14,7 +14,7 @@ When imagery is needed *and* the user hasn't supplied real assets, pick from thi
 | --- | --- | --- |
 | 1 | **Hallmark imagery kit** ([`imagery-kit.md`](imagery-kit.md)) | Brief allows non-photographic imagery: SaaS landings, manifestos, agency / studio splash, type-led portfolio, editorial-led marketing. **Always preferred** when the kit's register fits. |
 | 2 | **Hand-built SVG composition** (Tier B from custom-craft.md) | Editorial-typographic brief where "imagery" can be a stamp / wordmark / colour-blocked composition. Use when the kit doesn't carry the register. |
-| 3 | **Picsum** — `https://picsum.photos/seed/<seed>/<w>/<h>` | Generic photo slot, keyword anchoring not critical. Use a deterministic seed (brand-name + slot-name) so the same render produces the same image. |
+| 3 | **Picsum** — `/vendor/placeholder/seed/<seed>/<w>/<h>` | Generic photo slot, keyword anchoring not critical. Use a deterministic seed (brand-name + slot-name) so the same render produces the same image. |
 | 4 | **Unsplash Source** — `https://source.unsplash.com/<w>x<h>/?<keywords>` | Keyword-anchored photo slot — food, travel, portrait, real product. Pass 1–2 specific keywords, never zero. |
 | 5 | **Local `public/placeholder-<type>.{jpg,svg}`** | Self-contained projects with no third-party deps. Single neutral grey-block SVG checked into the repo. |
 
@@ -75,7 +75,7 @@ import { ArrowRight } from "@phosphor-icons/react";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 
 // Tabler — vanilla HTML via CDN
-<svg width="20" height="20"><use href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons/arrow-right.svg" /></svg>
+<svg width="20" height="20"><use href="/vendor/npm/@tabler/icons@latest/icons/arrow-right.svg" /></svg>
 ```
 
 ### Avoid

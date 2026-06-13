@@ -17,6 +17,7 @@ import { modelIdForTracking } from '@open-design/contracts/analytics';
 import { readAppConfig } from './app-config.js';
 import type { AppVersionInfo } from './app-version.js';
 import { listMessages } from './db.js';
+import { isOfflineMode } from './offline-mode.js';
 import {
   deriveLangfuseDeliveryState,
   readTelemetrySinkConfig,
@@ -176,6 +177,10 @@ function mergeTraceSafeManifests(
 }
 
 function inferObjectRegistrationRelayUrl(env: NodeJS.ProcessEnv = process.env): string | null {
+  // Offline deployments: object-registration relays are external telemetry
+  // surfaces and stay disabled regardless of env credentials.
+  if (isOfflineMode(env)) return null;
+
   const objectRelayUrl = env.OPEN_DESIGN_OBJECT_RELAY_URL?.trim();
   if (!objectRelayUrl) {
     const telemetryRelayUrl = env.OPEN_DESIGN_TELEMETRY_RELAY_URL?.trim();

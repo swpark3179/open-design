@@ -19,6 +19,9 @@ type CachedPresence = {
 
 let memoryCache: CachedPresence | null = null;
 let inflight: Promise<CachedPresence | null> | null = null;
+// Offline/intranet builds: the daemon answers 204 (lookup disabled) and we
+// stop asking for the rest of the page lifetime.
+let remoteDisabled = false;
 
 function readPersistedCache(): CachedPresence | null {
   if (typeof window === 'undefined') return null;
@@ -83,6 +86,7 @@ export function useDiscordPresence(): CachedPresence | null {
   });
 
   useEffect(() => {
+    if (remoteDisabled) return;
     const now = Date.now();
     const cached = memoryCache ?? readPersistedCache();
     if (cached && now - cached.ts < CACHE_TTL_MS) {
@@ -96,6 +100,10 @@ export function useDiscordPresence(): CachedPresence | null {
       inflight = (async () => {
         try {
           const res = await fetch(API);
+          if (res.status === 204) {
+            remoteDisabled = true;
+            return null;
+          }
           if (!res.ok) return null;
           const next = cacheFromPayload(await res.json());
           if (!next) return null;

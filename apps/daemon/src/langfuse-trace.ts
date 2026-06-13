@@ -31,6 +31,7 @@ import type {
 } from './run-analytics-observability.js';
 import type { RunFailureClassification } from './run-failure-classification.js';
 import { readTelemetryEnvironment } from './telemetry-environment.js';
+import { isOfflineMode } from './offline-mode.js';
 
 // Langfuse US region: confirmed by an end-to-end smoke on 2026-05-07 — the
 // project's keys authenticate against `us.cloud.langfuse.com` only. EU host
@@ -345,6 +346,10 @@ export function readLangfuseConfig(
 export function readTelemetrySinkConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): TelemetrySinkConfig | null {
+  // Offline deployments must not deliver content telemetry to the hosted
+  // relay or Langfuse cloud even when credentials are present in the env.
+  if (isOfflineMode(env)) return null;
+
   const relayUrl = env.OPEN_DESIGN_TELEMETRY_RELAY_URL?.trim();
   if (relayUrl) {
     return {

@@ -39,6 +39,7 @@ import type {
 import type Database from 'better-sqlite3';
 import { recordPluginEvent } from './events.js';
 import { upsertPluginLockfileEntry } from './lockfile.js';
+import { isOfflineMode } from '../offline-mode.js';
 
 type SqliteDb = Database.Database;
 
@@ -83,6 +84,12 @@ export interface InstallOptions {
   sourceMarketplaceId?: string;
   sourceMarketplaceEntryName?: string;
   sourceMarketplaceEntryVersion?: string;
+  // Offline/intranet deployments: directories whose layout mirrors the
+  // official repo checkout (workspace project root, packaged resource root).
+  // When offline mode is on and a `github:` source points at the official
+  // marketplace repo, the installer resolves the subpath against these roots
+  // instead of fetching from codeload.github.com / api.github.com.
+  localSourceRoots?: string[];
   marketplaceTrust?: MarketplaceTrust;
   resolvedSource?: string;
   resolvedRef?: string;
@@ -163,6 +170,40 @@ async function* installFromGithub(
     return;
   }
 
+  // Offline/intranet path: official-repo sources resolve against the local
+  // bundle (the repo checkout or the packaged resource root) so plugin
+  // installs keep working without GitHub access. Restricted to the official
+  // marketplace repo — joining an arbitrary repo's subpath onto a local root
+  // could silently install unrelated local content.
+  if (isOfflineMode() && isOfficialMarketplaceRepo(parsed.owner, parsed.repo)) {
+    for (const candidate of parsed.candidates) {
+      if (!candidate.subpath) continue;
+      for (const root of opts.localSourceRoots ?? []) {
+        if (!root) continue;
+        const localFolder = path.join(root, candidate.subpath);
+        let stats: fs.Stats;
+        try {
+          stats = await fsp.stat(localFolder);
+        } catch {
+          continue;
+        }
+        if (!stats.isDirectory()) continue;
+        yield {
+          kind: 'progress',
+          phase: 'resolving',
+          message: `Resolving ${opts.source} from local bundle ${localFolder}`,
+        };
+        yield* installFromLocalFolder(db, {
+          ...opts,
+          source: opts.source,
+          _stagedFolder: localFolder,
+          _stagedSourceKind: 'github',
+        } as InstallOptions & { _stagedFolder?: string; _stagedSourceKind?: PluginSourceKind });
+        return;
+      }
+    }
+  }
+
   let lastError: string | undefined;
   const triedUrls: string[] = [];
   for (const candidate of parsed.candidates) {
@@ -211,6 +252,17 @@ async function* installFromGithub(
       : `GitHub source ${opts.source} did not produce an installable archive`,
     warnings: [],
   };
+}
+
+// The repo whose `github:` sources may be satisfied from a local bundle in
+// offline mode. Mirrors marketplaceRegistryRepo() in ../plugins/marketplaces.ts
+// (env-overridable for forks that rename the marketplace repo).
+function isOfficialMarketplaceRepo(owner: string, repo: string): boolean {
+  const candidate = `${owner}/${repo}`.toLowerCase();
+  const configured = process.env.OD_MARKETPLACE_REPO?.trim()
+    .replace(/^\/+|\/+$/g, '')
+    .toLowerCase();
+  return candidate === 'nexu-io/open-design' || (!!configured && candidate === configured);
 }
 
 function parseGithubSource(source: string): ParsedGithubSource | null {

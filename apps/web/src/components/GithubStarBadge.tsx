@@ -17,8 +17,12 @@ import {
 
 export function GithubStarBadge() {
   const t = useT();
-  const count = useGithubStars();
+  const { count, disabled } = useGithubStars();
   const countLabel = count == null ? GITHUB_STARS_FALLBACK_LABEL : formatStars(count);
+
+  // Offline/intranet builds disable the GitHub lookup daemon-side; hide the
+  // badge instead of advertising an unreachable github.com CTA.
+  if (disabled) return null;
 
   return (
     <a

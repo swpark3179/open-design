@@ -27,7 +27,7 @@
 **做法**：用 Lucide 图标库，CDN 方式引用：
 
 ```html
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="/vendor/npm/lucide@latest/dist/umd/lucide.min.js"></script>
 ...
 <i data-lucide="target" class="ico-md"></i>
 ...

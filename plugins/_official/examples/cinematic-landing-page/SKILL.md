@@ -79,7 +79,7 @@ Gold accent **`#CB9D06`** — every hover state (nav links, buttons, footer link
 
 - `bg-white py-8 md:py-16 flex justify-center`; inner `w-[90%] md:w-[65%]`.
 - Grid: desktop ≥1000px = 4 cols (row 1: 4 equal; row 2: 3 cards, middle spans 2). Mobile = 2 cols. Aspect ratio 3:4, row gap 40px, item padding 4px.
-- 7 items: Viennese Pastry, Bread, Dessert, Savory, Sweet Treats, Culinary Aid, Ingredient (Culinary Aid is the span-2 middle card). Backgrounds `https://picsum.photos/seed/bakery-<seed>/600/800`.
+- 7 items: Viennese Pastry, Bread, Dessert, Savory, Sweet Treats, Culinary Aid, Ingredient (Culinary Aid is the span-2 middle card). Backgrounds `/vendor/placeholder/seed/bakery-<seed>/600/800`.
 - Entry: ScrollTrigger `start "top 85%"`, `once`; `{opacity:0, y:+120, filter: blur(10px)} → {opacity:1, y:0, blur(0)}`, 0.8s, `power3.out`, 0.05s stagger.
 - Hover: CSS `transform: scale(1.2)` on the bg image, `transition: transform 6s cubic-bezier(0.22,0.61,0.36,1)`.
 - Labels: `text-left text-black text-sm mt-2 font-manrope font-medium`.

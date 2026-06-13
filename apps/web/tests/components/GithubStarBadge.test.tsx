@@ -31,6 +31,20 @@ describe('GithubStarBadge', () => {
     );
   });
 
+  it('hides the badge entirely when the daemon disables the lookup (offline build, 204)', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 204,
+      json: async () => ({}),
+    } satisfies Partial<Response>) as typeof fetch;
+    const { GithubStarBadge } = await import('../../src/components/GithubStarBadge');
+
+    render(<GithubStarBadge />);
+
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByTestId('entry-star-badge')).toBeNull());
+  });
+
   it('renders the live star count returned by the daemon endpoint', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,

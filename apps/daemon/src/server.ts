@@ -30,6 +30,7 @@ import { emittedRenderableQuestionForm } from './question-form-detect.js';
 import { resolveProjectRoot } from './project-root.js';
 import {
   applyBakedPreviews,
+  localizePluginPreviewMedia,
   resolvePluginPreviewsDir,
   PLUGIN_PREVIEWS_ROUTE,
 } from './plugin-preview-bakes.js';
@@ -270,6 +271,7 @@ import {
   readAnalyticsContext,
   readPublicConfigResponse,
 } from './analytics.js';
+import { isOfflineMode } from './offline-mode.js';
 import { observePendingInstallerApplyAttempts } from './update-apply-observations.js';
 import {
   agentIdToTracking,
@@ -1441,14 +1443,31 @@ const PLUGIN_REGISTRY_DIR = resolveDaemonResourceDir(
   'plugins/registry',
   path.join(PROJECT_ROOT, 'plugins', 'registry'),
 );
+// Locally-vendored CDN assets (Tailwind browser build, React/Babel UMD,
+// GSAP, Chart.js, highlight.js, …) served at /vendor so generated artifacts
+// work without public internet access. See vendor/README.md.
+const VENDOR_ASSETS_DIR = resolveDaemonResourceDir(
+  DAEMON_RESOURCE_ROOT,
+  'vendor',
+  path.join(PROJECT_ROOT, 'vendor'),
+);
 const OFFICIAL_MARKETPLACE_ID = 'official';
 const OFFICIAL_PLUGIN_SOURCE_REPO = 'github:nexu-io/open-design@main';
+// Offline/intranet installs: roots whose layout mirrors the official repo
+// checkout, used by the plugin installer to satisfy official `github:`
+// sources without network access (packaged resource root first, then the
+// workspace checkout).
+const OFFICIAL_PLUGIN_LOCAL_SOURCE_ROOTS = [
+  ...(DAEMON_RESOURCE_ROOT ? [DAEMON_RESOURCE_ROOT] : []),
+  PROJECT_ROOT,
+];
 
 export function isStaticSpaFallbackRequest(req) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return false;
   if (req.path === '/api' || req.path.startsWith('/api/')) return false;
   if (req.path === '/artifacts' || req.path.startsWith('/artifacts/')) return false;
   if (req.path === '/frames' || req.path.startsWith('/frames/')) return false;
+  if (req.path === '/vendor' || req.path.startsWith('/vendor/')) return false;
   if (req.path === '/_next' || req.path.startsWith('/_next/')) return false;
 
   const accept = req.get?.('accept') ?? '';
@@ -5172,6 +5191,37 @@ export async function startServer({
     app.use(express.static(STATIC_DIR));
   }
 
+  // Offline/intranet asset surface. Generated artifacts and system prompts
+  // reference /vendor/... instead of public CDNs (unpkg, cdn.tailwindcss.com,
+  // cdn.jsdelivr.net); the files ship in the repo's vendor/ tree and in the
+  // packaged resource root. /vendor/placeholder/... is the local stand-in for
+  // external placeholder-image services (picsum.photos): it renders a
+  // deterministic SVG gradient sized + seeded from the URL.
+  app.get(['/vendor/placeholder/seed/:seed/:w/:h', '/vendor/placeholder/:w/:h'], (req, res) => {
+    const w = Math.min(Math.max(Number.parseInt(req.params.w, 10) || 0, 1), 4000);
+    const h = Math.min(Math.max(Number.parseInt(req.params.h, 10) || 0, 1), 4000);
+    const seed = typeof req.params.seed === 'string' && req.params.seed ? req.params.seed : `${w}x${h}`;
+    let hash = 0;
+    for (const ch of seed) hash = ((hash * 31 + ch.charCodeAt(0)) & 0x7fffffff) >>> 0;
+    const hue = hash % 360;
+    const hue2 = (hue + 40) % 360;
+    const svg = [
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`,
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">',
+      `<stop offset="0" stop-color="hsl(${hue} 35% 78%)"/>`,
+      `<stop offset="1" stop-color="hsl(${hue2} 40% 62%)"/>`,
+      '</linearGradient></defs>',
+      `<rect width="${w}" height="${h}" fill="url(#g)"/>`,
+      '</svg>',
+    ].join('');
+    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+    res.send(svg);
+  });
+  if (fs.existsSync(VENDOR_ASSETS_DIR)) {
+    app.use('/vendor', express.static(VENDOR_ASSETS_DIR, { maxAge: '7d', immutable: false }));
+  }
+
   app.get('/api/health', async (_req, res) => {
     const versionInfo = await readCurrentAppVersionInfo();
     res.json({ ok: true, version: versionInfo.version });
@@ -5193,6 +5243,9 @@ export async function startServer({
   });
 
   app.get('/api/github/open-design', async (_req, res) => {
+    // Offline deployments never call api.github.com; 204 tells the web
+    // client to hide the star badge instead of showing a stale fallback.
+    if (isOfflineMode()) return res.status(204).end();
     try {
       const stats = await readOpenDesignGithubRepoStats();
       const payload = /** @type {OpenDesignGithubRepoResponse} */ ({
@@ -5210,6 +5263,8 @@ export async function startServer({
   });
 
   app.get('/api/github/open-design/releases/latest', async (_req, res) => {
+    // Offline deployments never call api.github.com for release metadata.
+    if (isOfflineMode()) return res.status(204).end();
     try {
       const release = await readOpenDesignLatestReleaseInfo();
       const payload = /** @type {OpenDesignGithubLatestReleaseResponse} */ ({
@@ -5228,6 +5283,8 @@ export async function startServer({
   });
 
   app.get('/api/community/discord', async (_req, res) => {
+    // Offline deployments never call the Discord invite API.
+    if (isOfflineMode()) return res.status(204).end();
     try {
       const presence = await readOpenDesignDiscordPresence();
       const payload = /** @type {OpenDesignDiscordPresenceResponse} */ ({
@@ -7103,7 +7160,9 @@ export async function startServer({
   // and snapshot fetch by id (used by run replay tooling).
   app.get('/api/plugins', async (_req, res) => {
     try {
-      const plugins = applyBakedPreviews(listInstalledPlugins(db), PLUGIN_PREVIEWS_DIR);
+      const plugins = localizePluginPreviewMedia(
+        applyBakedPreviews(listInstalledPlugins(db), PLUGIN_PREVIEWS_DIR),
+      );
       res.json({ plugins });
     } catch (err) {
       res.status(500).json({ error: String(err) });
@@ -7114,7 +7173,7 @@ export async function startServer({
     try {
       const plugin = getInstalledPlugin(db, req.params.id);
       if (!plugin) return res.status(404).json({ error: 'plugin not found' });
-      res.json(plugin);
+      res.json(localizePluginPreviewMedia([plugin])[0]);
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
@@ -7337,6 +7396,7 @@ export async function startServer({
       for await (const ev of installPlugin(db, {
         source,
         roots: PLUGIN_REGISTRY_ROOTS,
+        localSourceRoots: OFFICIAL_PLUGIN_LOCAL_SOURCE_ROOTS,
         sourceMarketplaceId: marketplaceResolution?.marketplaceId,
         sourceMarketplaceEntryName: marketplaceResolution?.pluginName,
         sourceMarketplaceEntryVersion: marketplaceResolution?.pluginVersion,
@@ -7441,6 +7501,7 @@ export async function startServer({
       for await (const ev of installPlugin(db, {
         source,
         roots: PLUGIN_REGISTRY_ROOTS,
+        localSourceRoots: OFFICIAL_PLUGIN_LOCAL_SOURCE_ROOTS,
         eventKind: 'upgraded',
         sourceMarketplaceId: marketplaceResolution?.marketplaceId ?? plugin.sourceMarketplaceId,
         sourceMarketplaceEntryName: marketplaceResolution?.pluginName ?? plugin.sourceMarketplaceEntryName,

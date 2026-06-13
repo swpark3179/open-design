@@ -11,10 +11,13 @@ type NormalizedPathRule = {
 };
 
 async function main(): Promise<void> {
-  const [uiP0Workflow, ciWorkflow] = await Promise.all([
+  const [uiP0WorkflowRaw, ciWorkflowRaw] = await Promise.all([
     readFile(path.join(repoRoot, uiP0WorkflowPath), "utf8"),
     readFile(path.join(repoRoot, ciWorkflowPath), "utf8"),
   ]);
+
+  const uiP0Workflow = uiP0WorkflowRaw.replace(/\r\n/g, "\n");
+  const ciWorkflow = ciWorkflowRaw.replace(/\r\n/g, "\n");
 
   const uiP0Rules = normalizeRules(extractUiP0WorkflowPaths(uiP0Workflow));
   const ciRules = normalizeRules(extractCiUiP0Rules(ciWorkflow));
