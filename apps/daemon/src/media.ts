@@ -79,6 +79,15 @@ import {
   aihubmixGeminiImageBytes,
   classifyAIHubMixModel,
 } from './aihubmix.js';
+import {
+  readFabrixConfig,
+  findModel as findFabrixModel,
+  toPublicConfig as fabrixToPublicConfig,
+} from './fabrix/config.js';
+import {
+  generateFabrixImage,
+  streamFabrixImageAnalysis,
+} from './fabrix/client.js';
 
 const execFile = promisify(execFileCb);
 type ProviderConfig = { apiKey?: string; baseUrl?: string; model?: string };
@@ -148,6 +157,10 @@ const NANOBANANA_DEFAULT_MODEL = 'gemini-3.1-flash-image-preview';
 const NANOBANANA_DEFAULT_IMAGE_SIZE = '1K';
 const IMAGEROUTER_DEFAULT_BASE_URL = 'https://api.imagerouter.io/v1/openai';
 const CUSTOM_IMAGE_MODEL_ID = 'custom-image';
+// FabriX media model ids carry this prefix (e.g. `fabrix:gpt-4o-i2t`). The
+// prefix keeps them unique against every other catalog id and namespaces the
+// catalog-bypass branch + renderer in this module.
+const FABRIX_MEDIA_PREFIX = 'fabrix:';
 
 const DEFAULT_OUTPUT_BY_SURFACE = {
   image: 'image.png',
@@ -380,6 +393,26 @@ export async function generateMedia(args: {
                 ? ['tts']
                 : [],
       };
+    } else if (model.startsWith(FABRIX_MEDIA_PREFIX)) {
+      // Samsung SDS FabriX (BYOK). Models are discovered live from the FabriX
+      // credential store (~/.open-design/fabrix.json) and never appear in the
+      // static registry, so synthesize a def on the fly — the `fabrix:` prefix
+      // is stripped to the real model id inside renderFabrixMediaImage. FabriX
+      // media is image-only (T2I generation + I2T analysis); reject other
+      // surfaces with a clear message rather than a generic "unknown model".
+      if (surface !== 'image') {
+        throw new Error(
+          `FabriX media models only support the image surface (got "${surface}"). Use --surface image.`,
+        );
+      }
+      isCatalogBypass = true;
+      def = {
+        id: model,
+        label: model,
+        hint: 'Samsung SDS FabriX',
+        provider: 'fabrix',
+        caps: ['t2i', 'i2i', 'i2t'],
+      };
     } else {
       throw new Error(
         `unknown model: ${model}. Pass --model from the registered list (see /api/media/models), ` +
@@ -535,6 +568,11 @@ export async function generateMedia(args: {
       suggestedExt = result.suggestedExt;
     } else if (def.provider === 'aihubmix' && surface === 'image') {
       const result = await renderAIHubMixImage(ctx, credentials);
+      bytes = result.bytes;
+      providerNote = result.providerNote;
+      suggestedExt = result.suggestedExt;
+    } else if (def.provider === 'fabrix' && surface === 'image') {
+      const result = await renderFabrixMediaImage(ctx);
       bytes = result.bytes;
       providerNote = result.providerNote;
       suggestedExt = result.suggestedExt;
@@ -1021,6 +1059,143 @@ async function renderCustomOpenAIImage(ctx: MediaContext, credentials: ProviderC
     bytes,
     providerNote: `custom-image/${wireModel} · ${body.size} · ${bytes.length} bytes`,
     suggestedExt: sniffImageExt(bytes),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Provider: Samsung SDS FabriX (BYOK) — image bridge.
+//
+// FabriX already ships a chat-side BYOK integration (apps/daemon/src/fabrix/*)
+// with its own credential store and forced-non-proxy client. This bridges the
+// SAME client + store into the media-generation dispatcher so the New Project
+// image picker and `od media generate --surface image --model fabrix:<id>` can
+// drive FabriX's image-capable models:
+//   * T2I models → generate a PNG from the prompt (messageConfig width/height)
+//   * I2T models → analyze a `--image` reference and write the text result as
+//                  a Markdown artifact (kindFor('.md') === 'text')
+//
+// Credentials are NOT in media-config.json. FabriX keeps a dedicated 3-field
+// store at ~/.open-design/fabrix.json (endpoint + x-fabrix-client +
+// x-openapi-token), configured through the FabriX API-mode settings panel. We
+// read it directly here; the FabriX client forces a direct (non-proxy)
+// dispatcher, so `ctx.requestInit` is intentionally ignored on this path.
+// ---------------------------------------------------------------------------
+
+function fabrixAspectToSize(aspect: string | undefined): { width: number; height: number } {
+  switch (aspect) {
+    case '16:9':
+      return { width: 1024, height: 576 };
+    case '9:16':
+      return { width: 576, height: 1024 };
+    case '4:3':
+      return { width: 1024, height: 768 };
+    case '3:4':
+      return { width: 768, height: 1024 };
+    default:
+      return { width: 1024, height: 1024 };
+  }
+}
+
+async function collectFabrixAnalysis(
+  stored: Awaited<ReturnType<typeof readFabrixConfig>>,
+  modelIds: string[],
+  prompt: string,
+  file: { filename: string; contentType: string; bytes: Uint8Array },
+): Promise<string> {
+  let out = '';
+  let error: string | null = null;
+  await streamFabrixImageAnalysis(
+    stored,
+    modelIds,
+    '',
+    [prompt],
+    [file],
+    undefined,
+    {
+      onDelta: (delta) => {
+        out += delta;
+      },
+      onDone: () => {},
+      onError: (message) => {
+        error = message;
+      },
+    },
+  );
+  if (error) throw new Error(`FabriX image analysis failed: ${error}`);
+  return out;
+}
+
+async function renderFabrixMediaImage(ctx: MediaContext): Promise<RenderResult> {
+  const stored = await readFabrixConfig();
+  if (!fabrixToPublicConfig(stored).configured) {
+    throw new Error(
+      'FabriX is not configured — open Settings, switch to API mode, select FabriX, and connect your endpoint + credentials first.',
+    );
+  }
+
+  const realModelId = ctx.model.startsWith(FABRIX_MEDIA_PREFIX)
+    ? ctx.model.slice(FABRIX_MEDIA_PREFIX.length)
+    : ctx.model;
+  if (!realModelId) throw new Error('FabriX media model id is empty.');
+
+  // The stored catalog tells us whether this is a generation (T2I) or analysis
+  // (I2T) model. When it isn't cached (a freshly typed id), fall back to the
+  // presence of a reference image: an --image implies analysis, otherwise
+  // generation.
+  const modelInfo = findFabrixModel(stored, realModelId);
+  const kind = modelInfo?.kind ?? (ctx.imageRef ? 'i2t' : 't2i');
+
+  // FabriX's message-with-models endpoint routes best with a lead text model
+  // ahead of the image model (mirrors the chat proxy + the python samples).
+  const leadTextModel =
+    stored.defaultTextModelId && stored.defaultTextModelId !== realModelId
+      ? stored.defaultTextModelId
+      : null;
+  const modelIds = leadTextModel ? [leadTextModel, realModelId] : [realModelId];
+
+  if (kind === 'i2t') {
+    if (!ctx.imageRef) {
+      throw new Error(
+        `FabriX model "${realModelId}" is an image-analysis (I2T) model — pass --image <project-relative path> to the image to analyze.`,
+      );
+    }
+    const fileBytes = await readFile(ctx.imageRef.abs);
+    const promptText = ctx.prompt || 'Analyze this image in detail.';
+    const analysis = await collectFabrixAnalysis(stored, modelIds, promptText, {
+      filename: path.basename(ctx.imageRef.abs),
+      contentType: ctx.imageRef.mime,
+      bytes: new Uint8Array(fileBytes),
+    });
+    const md =
+      `# FabriX image analysis\n\n` +
+      `- Model: \`${realModelId}\`\n` +
+      `- Source image: \`${ctx.imageRef.path}\`\n\n` +
+      `## Prompt\n\n${promptText}\n\n` +
+      `## Result\n\n${analysis.trim() || '(empty response)'}\n`;
+    const bytes = Buffer.from(md, 'utf8');
+    return {
+      bytes,
+      providerNote: `fabrix/${realModelId} · image analysis · ${ctx.imageRef.path} · ${bytes.length} bytes`,
+      suggestedExt: '.md',
+    };
+  }
+
+  // Image generation (T2I): non-streaming multipart, base64 PNG payload.
+  const { width, height } = fabrixAspectToSize(ctx.aspect);
+  const result = await generateFabrixImage(
+    stored,
+    modelIds,
+    [ctx.prompt || 'A high-quality reference image.'],
+    { width, height },
+  );
+  const bytes = Buffer.from(result.base64, 'base64');
+  if (bytes.length === 0) {
+    throw new Error('FabriX returned an empty image payload.');
+  }
+  return {
+    bytes,
+    providerNote: `fabrix/${realModelId} · ${ctx.aspect} · ${width}x${height} · ${bytes.length} bytes`,
+    suggestedExt: '.png',
   };
 }
 

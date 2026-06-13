@@ -12,6 +12,7 @@ import {
 } from './aihubmix.js';
 import { isSandboxModeEnabled } from './sandbox-mode.js';
 import type { ToolTokenGrant } from './tool-tokens.js';
+import { readFabrixConfig } from './fabrix/config.js';
 
 const LONG_MEDIA_PROXY_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -287,6 +288,35 @@ export function registerMediaRoutes(app: Express, ctx: RegisterMediaRoutesDeps) 
         .json({ ok: false, detail: String(err && err.message ? err.message : err) });
     } finally {
       await dispatcher.close();
+    }
+  });
+
+  // Live FabriX media catalogue. FabriX is a BYOK provider whose image-capable
+  // models are discovered from the user's FabriX credential store
+  // (~/.open-design/fabrix.json), populated when they fetch models in the
+  // FabriX settings panel. They never appear in the static IMAGE_MODELS
+  // registry, so the picker reads them here. Ids are prefixed `fabrix:` so they
+  // route through the FabriX media bridge in media.ts. T2I models map to image
+  // generation; I2T models map to image analysis (needs a reference image).
+  app.get('/api/media/providers/fabrix/models', async (req, res) => {
+    if (!isLocalSameOrigin(req, getResolvedPort())) {
+      return res.status(403).json({ error: 'cross-origin request rejected' });
+    }
+    try {
+      const cfg = await readFabrixConfig();
+      const models = cfg.models
+        .filter((m) => m.kind === 't2i' || m.kind === 'i2t')
+        .map((m) => ({
+          id: `fabrix:${m.modelId}`,
+          label: m.name || m.modelId,
+          kind: m.kind,
+          caps: m.kind === 't2i' ? ['t2i'] : ['i2t'],
+        }));
+      res.json({ ok: true, configured: cfg.models.length > 0, models });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ ok: false, error: String(err && err.message ? err.message : err) });
     }
   });
 

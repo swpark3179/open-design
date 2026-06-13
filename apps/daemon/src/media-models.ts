@@ -80,6 +80,13 @@ export const MEDIA_PROVIDERS: MediaProvider[] = [
     customModelPlaceholder: 'gpt-image-2 or dall-e-3',
   },
   { id: 'tavily', label: 'Tavily Search', hint: 'Agent-callable web research', integrated: true, defaultBaseUrl: 'https://api.tavily.com' },
+  // Samsung SDS FabriX (BYOK). Credentials live in the dedicated FabriX
+  // store (~/.open-design/fabrix.json), configured through the FabriX API-mode
+  // settings panel — NOT media-config.json — so this provider is
+  // settingsVisible:false / credentialsRequired:false here. Its image-capable
+  // models (T2I generation, I2T analysis) are discovered live from that store
+  // and routed through the FabriX media bridge in media.ts via `fabrix:` ids.
+  { id: 'fabrix', label: 'Samsung SDS FabriX', hint: 'BYOK · image generation (T2I) + analysis (I2T)', integrated: true, credentialsRequired: false, settingsVisible: false },
   { id: 'stub', label: 'Stub (placeholder)', hint: 'Deterministic local placeholder bytes', integrated: true },
 ];
 

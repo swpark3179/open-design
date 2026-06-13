@@ -1,0 +1,62 @@
+## 이미지 분석
+(isStream = true)
+
+import requests
+import json
+from fastapi import UploadFile
+import sseclient
+
+YOUR_CLIENT_KEY = ""
+YOUR_PASS_KEY = ""
+ENDPOINT_URL = ""
+YOUR_TEXT_MODEL_ID = "Get model id from All Model API"
+YOUR_I2T_MODEL_ID = "Get model id from All Model API"
+
+file: UploadFile = open("./sample.png", "rb")
+
+header = {
+	"x-fabrix-client": YOUR_CLIENT_KEY,
+	"x-openapi-token": YOUR_PASS_KEY,
+}
+
+llm_config = json.dumps{
+	{
+		"max_new_tokens": 2024,
+		"seed": None,
+		"top_k": 14,
+		"top_p": 0.94,
+		"temperature": 0.4
+		"repetition_penalty": 1.04,
+	}
+}
+
+form_data = {
+	"modelIds": [YOUR_TEXT_MODEL_ID, YOUR_I2T_MODEL_ID],
+	"contents": ["sample.png 이미지 파일을 분석해줘"],
+	"llmConfig": llm_config,
+	"isStream": True
+}
+
+api_endpoint_url = f"{ENDPOINT_URL}/openapi/chat/v1/messages-with-models"
+response = requests.post(api_endpoint_url, headers=headers, data=form_data, files=[("files", file)])
+
+# return response
+if response.status_code != 200:
+	print(f"Error: Status_code[{response.status_code}], Status message=[{response.text}]")
+client = sseclient.SSEClient(response)
+
+# make result contents
+def get_result():
+	for event in client.events():
+		print(f"Data: {event.data})
+		yield event.data
+		
+result_message = ""
+for ch in get_result():
+	ch_json = json.loads(ch)
+	if ch_json['status'] == 'SUCCESS' and ch_json['response_code'] == 'R20000':
+		print("Stream Finished!!")
+	if ch_json['event_status'] == 'CHUNK' and ch_json['content']:
+		result message += ch_json['content']
+		
+print(result_message)

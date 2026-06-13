@@ -3,6 +3,7 @@ import type { MediaProviderCredentials } from '../types';
 import {
   findMediaModel,
   findProvider,
+  mediaModelProviderId,
   type MediaProviderId,
 } from './models';
 
@@ -24,8 +25,13 @@ export function isMediaModelPickerReady(
   mediaProviders?: Record<string, MediaProviderCredentials>,
 ): boolean {
   const model = findMediaModel(modelId);
-  if (!model) return false;
-  return isMediaProviderPickerReady(model.provider, mediaProviders);
+  if (model) return isMediaProviderPickerReady(model.provider, mediaProviders);
+  // Live-discovered ids (e.g. `aihubmix-*`, `fabrix:*`) are absent from the
+  // static registry; resolve their provider by id namespace so they aren't
+  // falsely gated as "not ready".
+  const dynamicProvider = mediaModelProviderId(modelId);
+  if (dynamicProvider) return isMediaProviderPickerReady(dynamicProvider, mediaProviders);
+  return false;
 }
 
 function isOpenAIOAuthOnlyEntry(entry: MediaProviderCredentials | null | undefined): boolean {

@@ -52,6 +52,7 @@ export type MediaProviderId =
   | 'aihubmix'
   | 'tavily'
   | 'leonardo'
+  | 'fabrix'
   | 'stub';
 
 export interface MediaProvider {
@@ -280,6 +281,19 @@ export const MEDIA_PROVIDERS: MediaProvider[] = [
     integrated: true,
     defaultBaseUrl: 'https://api.tavily.com',
     docsUrl: 'https://app.tavily.com/home',
+  },
+  {
+    id: 'fabrix',
+    label: 'Samsung SDS FabriX',
+    hint: 'BYOK · image generation (T2I) + analysis (I2T)',
+    integrated: true,
+    // Credentials are configured in the FabriX BYOK (API-mode) settings panel
+    // and persisted to ~/.open-design/fabrix.json — NOT media-config.json — so
+    // the Media Providers settings list hides FabriX (like HyperFrames/stub)
+    // and the picker treats it as always-ready. Its image-capable models are
+    // discovered live from that store via /api/media/providers/fabrix/models.
+    credentialsRequired: false,
+    settingsVisible: false,
   },
   {
     id: 'stub',
@@ -687,6 +701,9 @@ export function findProvider(id: MediaProviderId): MediaProvider | null {
  */
 export function mediaModelProviderId(id: string): MediaProviderId | undefined {
   if (id.startsWith('aihubmix-')) return 'aihubmix';
+  // FabriX media ids are `fabrix:<modelId>` (discovered live, absent from the
+  // static registry) — match that namespace before the registry lookup.
+  if (id.startsWith('fabrix:')) return 'fabrix';
   return findMediaModel(id)?.provider;
 }
 

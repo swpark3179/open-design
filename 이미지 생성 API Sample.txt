@@ -1,0 +1,49 @@
+## 이미지 생성
+(isStream = false)
+
+import requests
+import json
+import base64
+
+YOUR_CLIENT_KEY = ""
+YOUR_PASS_KEY = ""
+ENDPOINT_URL = ""
+YOUR_TEXT_MODEL_ID = "Get model id from All Model API"
+YOUR_T2I_MODEL_ID = "Get model id from All Model API"
+
+header = {
+	"x-fabrix-client": YOUR_CLIENT_KEY,
+	"x-openapi-token": YOUR_PASS_KEY,
+}
+
+llm_config = json.dumps{
+	{
+		"max_new_tokens": 2024,
+		"seed": None,
+		"top_k": 14,
+		"top_p": 0.94,
+		"temperature": 0.4
+		"repetition_penalty": 1.04,
+	}
+}
+
+message_config = json.dumps({"width": 64, "height": 64})
+
+form_data = {
+	"modelIds": [YOUR_TEXT_MODEL_ID, YOUR_T2I_MODEL_ID],
+	"contents": ["강아지 그려줘?"],
+	"llmConfig": llm_config,
+	"isStream": False,
+	"messageConfig": message_config
+}
+
+api_endpoint_url = f"{ENDPOINT_URL}/openapi/chat/v1/messages-with-models"
+response = requests.post(api_endpoint_url, headers=headers, data=form_data)
+
+# 응답 반환
+bytes_to_json_data = json.loads(response.content)
+image_base64 = bytes_to_json_data.get("actions")[0].get("answer")
+image_bytes = base64.b64decode(image_base64)
+
+with open("result.png", "wb") as f:
+	f.write(image_bytes)

@@ -9,6 +9,11 @@ This file is the re-application checklist. When you rebase/upgrade and a shared 
 conflicts, re-apply the marked edit and verify with `pnpm --filter @open-design/web
 typecheck` + `pnpm --filter @open-design/daemon typecheck`.
 
+> FabriX is also wired into the **media-generation** feature (image generation
+> + image analysis) as a media provider that reuses this same client and
+> credential store. That seam has its own re-application checklist in
+> [`FABRIX_MEDIA_PROVIDER.md`](./FABRIX_MEDIA_PROVIDER.md).
+
 ## Requirement source
 
 `requirement.txt` (repo root) is the product spec. Key points:
