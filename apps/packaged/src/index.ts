@@ -14,7 +14,37 @@ import {
 import { applyOsLocaleSwitch, createSplashWindow, setSplashStage } from "@open-design/desktop/main";
 import { readProcessStamp } from "@open-design/platform";
 import { join } from "node:path";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { app, dialog } from "electron";
+
+function ensureLocalAgentsConfig(): void {
+  try {
+    const dir = join(homedir(), ".open-design");
+    const filePath = join(dir, "agents.local.json");
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    if (!existsSync(filePath)) {
+      const defaultData = {
+        agents: [
+          {
+            id: "aipro",
+            name: "Ai Pro",
+            baseAgent: "gemini",
+            bin: "aipro",
+            env: {
+              GEMINI_CLI_TRUST_WORKSPACE: "true"
+            }
+          }
+        ]
+      };
+      writeFileSync(filePath, JSON.stringify(defaultData, null, 2), "utf8");
+    }
+  } catch (error) {
+    console.error("Failed to ensure local agents config:", error);
+  }
+}
 
 import { readPackagedConfig } from "./config.js";
 import { writePackagedDesktopIdentity } from "./identity.js";
@@ -73,6 +103,7 @@ function applyPackagedUpdaterEnv(updateMetadataUrl: string | null): void {
 }
 
 async function main(): Promise<void> {
+  ensureLocalAgentsConfig();
   // Must run BEFORE `app.whenReady()` below, because Chromium consumes
   // `--lang` at session bootstrap. Doing it here lets the packaged
   // renderer's `navigator.language` follow the OS instead of Chromium's

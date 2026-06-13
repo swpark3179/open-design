@@ -36,6 +36,7 @@ export const AGENT_SLUGS = [
   'copilot',
   'openclaw',
   'antigravity',
+  'aipro',
   'gemini',
   'pi',
   'vibe',
@@ -174,6 +175,19 @@ export function planAgentInstall(
         removeArgv: ['mcp', 'remove', serverName],
         getArgv: ['mcp', 'get', serverName],
       };
+      case 'aipro':
+        return {
+          kind: 'cli',
+          slug,
+          bin: 'aipro',
+          addArgv: [
+            'mcp', 'add', '-s', 'user', '-t', 'stdio',
+            ...envFlags(spec.env, '-e'),
+            serverName, spec.command, ...spec.args,
+          ],
+          removeArgv: ['mcp', 'remove', serverName],
+          getArgv: ['mcp', 'list'],
+        };
     case 'gemini':
       return {
         kind: 'cli',
