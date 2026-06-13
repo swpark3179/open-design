@@ -5,25 +5,23 @@ import { describe, expect, test } from "vitest";
 const runtimeSource = readFileSync(new URL("../../src/main/runtime.ts", import.meta.url), "utf8");
 
 /**
- * runtime.ts constructs three BrowserWindows (brand splash, desktop pet, main
- * app window), and the splash shares the `title: "Open Design"` /
- * `width: 1280` markers with the main app window. Scope matching to a single
- * constructor's options literal — a non-greedy whole-source regex anchors on
- * the FIRST `new BrowserWindow({` and silently locks onto the splash block.
- * The main app window is the only one that sets both the app title and a
- * preload script; requiring exactly one match keeps a future fourth window
- * from being checked ambiguously.
+ * runtime.ts constructs three BrowserWindows — the brand splash
+ * (`createSplashWindow`), the desktop pet, and the main app window — and the
+ * splash, declared FIRST, shares the `title: "Open Design"` / `width: 1280`
+ * markers with the main window while intentionally omitting
+ * `backgroundThrottling: false`. A loose `new BrowserWindow({` anchor therefore
+ * locks onto the splash block. Anchor instead on the `const window =`
+ * declaration that is unique to the main app window, and assert exactly one
+ * match so a rename or a second such declaration fails loudly here rather than
+ * silently inspecting the wrong window.
  */
 function mainAppWindowOptions(): string {
-  const optionBlocks = runtimeSource
-    .split("new BrowserWindow({")
+  const blocks = runtimeSource
+    .split("const window = new BrowserWindow({")
     .slice(1)
     .map((block) => block.slice(0, block.indexOf("});")));
-  const mainBlocks = optionBlocks.filter(
-    (block) => block.includes('title: "Open Design",') && block.includes("preload: preloadPath,"),
-  );
-  expect(mainBlocks).toHaveLength(1);
-  return mainBlocks[0] ?? "";
+  expect(blocks).toHaveLength(1);
+  return blocks[0] ?? "";
 }
 
 describe("desktop BrowserWindow chrome options", () => {
