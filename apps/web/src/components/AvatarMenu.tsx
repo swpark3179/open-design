@@ -195,7 +195,7 @@ export function AvatarMenu({
   useEffect(() => {
     if (!open || config.mode !== 'api') return;
     if (fetchedByokModels.length > 0) return;
-    if (apiProtocol === 'azure' || apiProtocol === 'ollama') return;
+    if (apiProtocol === 'azure' || apiProtocol === 'ollama' || apiProtocol === 'fabrix') return;
     const baseUrl = config.baseUrl?.trim() ?? '';
     const apiKey = config.apiKey?.trim() ?? '';
     if (!baseUrl || !apiKey) return;

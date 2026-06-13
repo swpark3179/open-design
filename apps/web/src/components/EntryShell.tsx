@@ -9,6 +9,7 @@
 // thin wrapper that passes data and callbacks through to this shell.
 
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -99,6 +100,7 @@ import { Icon } from './Icon';
 import { AgentIcon } from './AgentIcon';
 import { IntegrationsView, type IntegrationTab } from './IntegrationsView';
 import { InlineModelSwitcher } from './InlineModelSwitcher';
+import { FabrixByokSection } from './FabrixByokSection';
 import {
   EntrySettingsMenu,
   type EntrySettingsSection,
@@ -941,6 +943,25 @@ function OnboardingView({
 }) {
   const t = useT();
   const analytics = useAnalytics();
+  // FabriX (Samsung SDS) owns its two-header credentials daemon-side, so its
+  // onboarding panel reuses the same self-contained FabrixByokSection that
+  // Settings uses. That component drives config through a setCfg-style updater;
+  // bridge it to this onboarding flow's persist callback. The ref keeps the
+  // updater reading the latest config so sequential updates (fetch → select)
+  // don't operate on a stale snapshot.
+  const configRef = useRef(config);
+  configRef.current = config;
+  const applyFabrixConfigDraft = useCallback<Dispatch<SetStateAction<AppConfig>>>(
+    (value) => {
+      const next =
+        typeof value === 'function'
+          ? (value as (prev: AppConfig) => AppConfig)(configRef.current)
+          : value;
+      void onConfigPersist(next);
+    },
+    [onConfigPersist],
+  );
+
   const [step, setStep] = useState(0);
   const [runtime, setRuntime] = useState<'amr' | 'local' | 'byok' | null>(null);
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
@@ -1928,6 +1949,8 @@ function OnboardingView({
                 {runtime === 'byok' ? (
                   <OnboardingByokSetupPanel
                     apiProtocol={apiProtocol}
+                    config={config}
+                    setCfg={applyFabrixConfigDraft}
                     apiKey={config.apiKey}
                     baseUrl={config.baseUrl}
                     model={config.model}
@@ -2286,6 +2309,8 @@ function formatModelToken(token: string): string {
 
 function OnboardingByokSetupPanel({
   apiProtocol,
+  config,
+  setCfg,
   apiKey,
   baseUrl,
   model,
@@ -2307,6 +2332,8 @@ function OnboardingByokSetupPanel({
   onFetchModels,
 }: {
   apiProtocol: ApiProtocol;
+  config: AppConfig;
+  setCfg: Dispatch<SetStateAction<AppConfig>>;
   apiKey: string;
   baseUrl: string;
   model: string;
@@ -2336,6 +2363,46 @@ function OnboardingByokSetupPanel({
   const t = useT();
   const running = testState.status === 'running';
   const fetchingModels = modelsState.status === 'running';
+
+  // FabriX (Samsung SDS) needs the three-field, two-header credential flow with
+  // a daemon-side model fetch (Endpoint URL + x-fabrix-client + x-openapi-token,
+  // then a gated model combobox). Render the same self-contained panel used in
+  // Settings instead of the generic apiKey/baseUrl/model form, keeping the
+  // provider tabs above it so the user can still switch to another BYOK
+  // provider. The generic Fetch/Test header buttons are intentionally omitted —
+  // FabrixByokSection owns its own fetch button.
+  if (apiProtocol === 'fabrix') {
+    return (
+      <div className="onboarding-view__setup-panel">
+        <div className="onboarding-view__setup-head">
+          <div>
+            <strong>{t('settings.modeApiMeta')}</strong>
+            <p>{t('settings.modeApi')}</p>
+          </div>
+        </div>
+        <div
+          className="onboarding-view__protocol-strip"
+          role="tablist"
+          aria-label={t('settings.protocolAria')}
+        >
+          {API_PROTOCOL_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={apiProtocol === tab.id}
+              className={apiProtocol === tab.id ? 'is-selected' : ''}
+              onClick={() => onProtocolChange(tab.id)}
+            >
+              {tab.title}
+            </button>
+          ))}
+        </div>
+        <FabrixByokSection cfg={config} setCfg={setCfg} />
+      </div>
+    );
+  }
+
   return (
     <div className="onboarding-view__setup-panel">
       <div className="onboarding-view__setup-head">

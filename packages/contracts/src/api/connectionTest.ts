@@ -178,7 +178,13 @@ export interface ConnectionTestDiagnostics {
   stderrTail?: string;
 }
 
-export type ConnectionTestProtocol = 'anthropic' | 'openai' | 'azure' | 'google' | 'ollama' | 'senseaudio' | 'aihubmix';
+// `fabrix` is the Samsung SDS FabriX enterprise BYOK provider. It does not
+// participate in the generic provider connection-test / model-discovery
+// endpoints (it owns dedicated `/api/fabrix/*` routes), but it is part of
+// the union so the web `ApiProtocol` type stays aligned and BYOK pickers can
+// list it. The daemon's provider switch falls through to its `default` for
+// `fabrix`, so callers must route FabriX through its own endpoints.
+export type ConnectionTestProtocol = 'anthropic' | 'openai' | 'azure' | 'google' | 'ollama' | 'senseaudio' | 'aihubmix' | 'fabrix';
 
 export interface ProviderTestRequest {
   protocol: ConnectionTestProtocol;

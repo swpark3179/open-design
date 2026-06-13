@@ -225,8 +225,15 @@ export function MemoryModelInline({
   // derived from the agent id (claude → anthropic, codex → openai,
   // …), while the "Same as chat" default can still run the selected
   // local CLI directly on daemon-supported adapters.
+  // FabriX is not a memory-extraction provider (its two-header auth + custom
+  // endpoints aren't expressible through the generic memory path), so it maps
+  // to null and the picker shows no provider-specific metadata for it.
   const effectiveChatProtocol: MemoryExtractionProvider | null =
-    mode === 'api' ? apiProtocol : chatProtocolFromAgent(cliAgentId);
+    mode === 'api'
+      ? apiProtocol === 'fabrix'
+        ? null
+        : apiProtocol
+      : chatProtocolFromAgent(cliAgentId);
   const sameAsChatCliLabel =
     mode === 'daemon' ? cliAgentLabel(cliAgentId) : null;
 
@@ -274,7 +281,11 @@ export function MemoryModelInline({
       const trimmedModel = modelId.trim();
       if (mode === 'api') {
         return {
-          provider: apiProtocol,
+          // FabriX can't drive memory extraction through the generic path;
+          // fall back to a model-inferred provider (never reached at runtime
+          // since the FabriX panel doesn't surface this picker).
+          provider:
+            apiProtocol === 'fabrix' ? inferProviderFromModel(trimmedModel) : apiProtocol,
           model: trimmedModel,
           baseUrl: chatBaseUrl.trim(),
           apiKey: chatApiKey,

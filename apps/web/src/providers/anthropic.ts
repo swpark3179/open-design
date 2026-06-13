@@ -18,6 +18,7 @@ import { streamMessageOllama } from './ollama-compatible';
 import { isOpenAICompatible, streamMessageOpenAI } from './openai-compatible';
 import { streamMessageSenseAudio } from './senseaudio-compatible';
 import { streamMessageAIHubMix } from './aihubmix-compatible';
+import { streamMessageFabrix } from './fabrix-compatible';
 import { usesAnthropicProxy } from '../utils/apiProtocol';
 
 // Re-export for convenience
@@ -52,6 +53,9 @@ export async function streamMessage(
 ): Promise<void> {
   // Prefer the explicit Settings protocol; keep the legacy heuristic as a
   // fallback for configs saved before apiProtocol existed.
+  if (cfg.apiProtocol === 'fabrix') {
+    return streamMessageFabrix(cfg, system, history, signal, handlers, context);
+  }
   if (cfg.apiProtocol === 'azure') {
     return streamMessageAzure(cfg, system, history, signal, handlers);
   }

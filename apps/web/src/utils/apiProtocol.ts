@@ -2,6 +2,7 @@ import { isOpenAICompatible } from '../providers/openai-compatible';
 import type { ApiProtocol, AppConfig } from '../types';
 
 const API_PROTOCOL_LABELS: Record<ApiProtocol, string> = {
+  fabrix: 'Samsung SDS FabriX',
   anthropic: 'Anthropic API',
   openai: 'OpenAI API',
   azure: 'Azure OpenAI',
@@ -12,6 +13,7 @@ const API_PROTOCOL_LABELS: Record<ApiProtocol, string> = {
 };
 
 const API_PROTOCOL_AGENT_IDS: Record<ApiProtocol, string> = {
+  fabrix: 'fabrix-api',
   anthropic: 'anthropic-api',
   openai: 'openai-api',
   azure: 'azure-openai-api',

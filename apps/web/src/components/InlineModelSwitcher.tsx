@@ -91,6 +91,7 @@ interface Props {
 }
 
 const API_PROTOCOL_TABS: Array<{ id: ApiProtocol; title: string }> = [
+  { id: 'fabrix', title: 'FabriX' },
   { id: 'anthropic', title: 'Anthropic' },
   { id: 'openai', title: 'OpenAI' },
   { id: 'azure', title: 'Azure' },
@@ -456,7 +457,7 @@ export function InlineModelSwitcher({
   // serves both surfaces and replaces any stale slot.
   useEffect(() => {
     if (!open || config.mode !== 'api' || !onProviderModelsCacheChange) return;
-    if (apiProtocol === 'azure' || apiProtocol === 'ollama') return;
+    if (apiProtocol === 'azure' || apiProtocol === 'ollama' || apiProtocol === 'fabrix') return;
     if (apiProtocol !== 'aihubmix' && !config.apiKey.trim()) return;
     const baseUrl = config.baseUrl.trim();
     if (!/^https?:\/\//i.test(baseUrl)) return;

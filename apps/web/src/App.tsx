@@ -44,6 +44,14 @@ import {
 } from './components/SettingsDialog';
 import { PrivacyConsentModal } from './components/PrivacyConsentModal';
 import {
+  FABRIX_CONFIG_CHANGED_EVENT,
+  FABRIX_MANAGED_API_KEY,
+  fabrixModelsCacheKey,
+  fabrixModelsToOptions,
+  fetchFabrixConfig,
+  selectFabrixModel,
+} from './fabrix/fabrix';
+import {
   daemonIsLive,
   fetchAppVersionInfo,
   fetchAgentsStream,
@@ -1213,9 +1221,63 @@ function AppInner() {
       saveConfig(next);
       void syncConfigToDaemon(next);
       setConfig(next);
+      // FabriX selection is owned by the daemon (~/.open-design/fabrix.json)
+      // so it survives reloads/installs; mirror the picked model there.
+      if ((config.apiProtocol ?? 'anthropic') === 'fabrix' && model) {
+        void selectFabrixModel(model);
+      }
     },
     [config],
   );
+
+  // FabriX addon: hydrate the masked FabriX config from the daemon on mount
+  // and whenever the FabriX settings panel signals a change, so both top-bar
+  // model switchers (home + work) list the discovered models and reflect the
+  // persisted selection — even across browser-storage resets, since the
+  // daemon owns the credentials and selection.
+  const loadFabrixConfig = useCallback(async () => {
+    const fabrixConfig = await fetchFabrixConfig();
+    if (!fabrixConfig) return;
+    const endpoint = (fabrixConfig.endpointUrl ?? '').trim();
+    const options = fabrixModelsToOptions(fabrixConfig.models ?? []);
+    if (endpoint && options.length > 0) {
+      setProviderModelsCache((prev) => ({
+        ...prev,
+        [fabrixModelsCacheKey(endpoint)]: options,
+      }));
+    }
+    setConfig((prev) => {
+      const apiKey = fabrixConfig.configured
+        ? FABRIX_MANAGED_API_KEY
+        : prev.apiProtocolConfigs?.fabrix?.apiKey ?? '';
+      const model =
+        fabrixConfig.selectedModelId ?? prev.apiProtocolConfigs?.fabrix?.model ?? '';
+      const next: AppConfig = {
+        ...prev,
+        apiProtocolConfigs: {
+          ...(prev.apiProtocolConfigs ?? {}),
+          fabrix: { apiKey, baseUrl: endpoint, model, apiProviderBaseUrl: null },
+        },
+      };
+      if ((prev.apiProtocol ?? 'anthropic') === 'fabrix') {
+        next.apiKey = apiKey;
+        next.baseUrl = endpoint;
+        next.model = model;
+        next.apiProviderBaseUrl = null;
+        next.apiVersion = '';
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    void loadFabrixConfig();
+    const handler = () => {
+      void loadFabrixConfig();
+    };
+    window.addEventListener(FABRIX_CONFIG_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(FABRIX_CONFIG_CHANGED_EVENT, handler);
+  }, [loadFabrixConfig]);
 
   const handleChangeDefaultDesignSystem = useCallback(
     (designSystemId: string | null) => {

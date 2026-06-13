@@ -1,0 +1,265 @@
+BYOK 연결 시 한 종류를 더 추가하고, 이것을 BYOK 중에서는 기본값으로 하자.
+홈화면 우측 상단 모델 선택 시 BYOK 항목의 제공자에서도 가장 먼저 등장하게..
+제공자 이름 : FabriX (FullName은 Samsung SDS FabriX)
+
+---
+
+# 공통사항
+BYOK 설정 화면에서 순서대로 입력 필요
+- Endpoint URL : 이후 ${ENDPOINT_URL} 로 설명
+- x-fabrix-client : 이후 ${X_FABRIX_CLIENT}로 설명
+- x-openapi-token : 이후 ${X_OPENAPI_TOKEN}로 설명
+
+이 세가지를 입력하면 model fetch 버튼이 나타나고, fetch를 누르면 그 아래에 있는 모델 선택 콤보박스가 비활성 해제되면서 목록이 보인다.
+모델 선택 콤보박스에는 기본적으로 모델명이 보이고, 설명이 간략하게 되어있고, types에서 파생된 정보를 꼭 같이 표시한다. (텍스트 전용인지, 텍스트 + 이미지 분석 모델인지, 이미지 생성 전용인지 등)
+
+모델 선택을 하면 자동으로 저장되고, 홈화면 우측 상단 모델 선택 콤보박스 및 디자인 요청(작업)화면 우측 상단의 모델 선택 콤보박스에 모델 목록 업데이트 및 정상 활용이 되어야 한다.
+
+여기에서 설명하는 모든 API는 브라우저 상황에 관계없이 프록시를 타지 않고 호출되어야 한다. (브라우저가 기본적으로 프록시 호출을 할 수 있어서 강제 논프록시 필요)
+
+한 번 정보를 저장했으면 사용자 홈폴더/.open-design 폴더 내 어떤 파일이던 정보를 저장해서 이후 실행 시 계속 사용할 수 있어야 한다.
+특히, 이 파일을 통해서 정보가 로드되는 경우, 화면에서는 x-fabrix-client 및 x-openapi-token 정보를 보여주지 않도록 한다.
+
+디자인 요청(작업) 화면에서 요청하는 모든 것은 모델 및 요청하는 타입에 따라 일반 텍스트 호출 / 멀티파트 모델 호출 을 수행한다.
+
+---
+
+# Model Fetch 시
+- 사용 API : ${ENDPOINT_URL}/openapi/chat/v1/all-models
+## 필수 헤더 정보
+- Content-Type : "application/json"
+- x-fabrix-client : ${X_FABRIX_CLIENT}
+- x-openapi-token : ${X_OPENAPI_TOKEN}
+
+## 응답 정보
+| Field | Type | Description | Value |
+| --- | --- | --- | --- |
+| modelId | String | Model Id | |
+| name | list | Model Name | [{"languageCode": "ko", "content": "모델명"} ] |
+| descrption | list | Model Description | [{"languageCode": "ko", "content": "설명"}] |
+| types | list | Model Type | ["TEXT"] |
+
+## 추가 설명
+응답 정보의 types 에서 TEXT 는 대화모델, I2T 라고 되어있으면 이미지 분석 모델, T2I 로 되어있으면 이미지 생성 모델
+즉, TEXT만 사용가능한 모델은 아래에 소개된 API 중 ${ENDPOINT_URL}/openapi/chat/v1/messages 를 활용하고,
+I2T나 T2I 모델을 사용하는 모델은 ${ENDPOINT_URL}/openapi/chat/v1/message-with-models를 활용한다.
+Fetch 직후에 멀티파트 모델 호출 시 기본적으로 사용될 수 있는 YOUR_TEXT_MODEL_ID, YOUR_T2I_MODEL_ID 를 위해서 types가 T2I 인것과 I2T 인 것 하나씩을 가져온다. 없으면 할 수 없음.
+
+## 사용 예시(python)
+```
+import requests
+YOUR_CLIENT_KEY = ""
+YOUR_PASS_KEY = ""
+ENDPOINT_URL = ""
+
+headers = {
+	"x-fabrix-client": YOUR_CLIENT_KEY,
+	"x-openapi-token": YOUR_PASS_KEY
+}
+
+api_endpoint_url = f"{ENDPOINT_URL}/openapi/chat/v1/all-models"
+
+response=requests.get(
+	api_endpoint_url,
+	headers=headers
+}
+
+# 응답 반환
+print(response.json())
+```
+
+---
+
+# 일반 텍스트 호출 시
+- 사용 API : ${ENDPOINT_URL}/openapi/chat/v1/messages
+
+## 필수 헤더 정보
+- Content-Type : "application/json"
+- x-fabrix-client : ${X_FABRIX_CLIENT}
+- x-openapi-token : ${X_OPENAPI_TOKEN}
+
+## 사용 예시(python)
+```
+import json
+import requests
+import sseclient
+
+YOUR_CLIENT_KEY = ""
+YOUR_PASS_KEY = ""
+YOUR_MODEL_ID = "Get model id from Model API"
+ENDPOINT_URL = ""
+
+headers = {
+	"x-fabrix-client": YOUR_CLIENT_KEY,
+	"x-openapi-token": YOUR_PASS_KEY
+}
+
+body = {
+	"modelIds": [YOUR_MODEL_ID],
+	"contents": ["안녕하세요?", "네 안녕하세요", "내 이름은 LCY인데 너의 이름은 뭐니?"],
+	"llmConfig": {
+		"max_new_tokens": 2024,
+		"seed": None,
+		"top_k": 14,
+		"top_p": 0.94,
+		"temperature": 0.4,
+		"repetition_penalty": 1.04
+	},
+	"isStream": True,
+	"systemPrompt":"안녕하세요. 사용자 질문에 친절히 대답해주세요."
+}
+
+api_endpoint_url = f"{ENDPOINT_URL}/openapi/chat/v1/messages"
+
+response=requests.post(
+	api_endpoint_url,
+	headers=headers,
+	json=body
+)
+
+# return response
+if response.status_code != 200:
+	print(f"Error: Status_code=[{response.status_code}], Status message=[{response.text}]")
+client = sseclient.SSEClient(response)
+
+# make result contents
+def get_result():
+	for event in client.events():
+		# print(f"Event: {event.event}")
+		print(f"Data: {event.data}")
+		yield event.data
+
+result_message = ""
+for ch in get_result():
+	ch_json = json.loads(ch)
+	if ch_json['status'] == 'SUCCESS' and ch_json['response_code'] == 'R20000':
+		print("Stream Finished!!")
+	if ch_json['event_status'] == 'CHUNK' and ch_json['content']:
+		result_message += ch_json['content']
+		
+print(result_message)
+```
+
+---
+
+# 멀티파트 모델 호출 시
+- 사용 API : ${ENDPOINT_URL}/openapi/chat/v1/messages-with-models
+
+## 필수 헤더 정보
+- Content-Type : "multipart/form-data"
+- x-fabrix-client : ${X_FABRIX_CLIENT}
+- x-openapi-token : ${X_OPENAPI_TOKEN}
+
+## 사용 예시 - 이미지 생성(python)
+```
+import requests
+import json
+import base64
+
+YOUR_CLIENT_KEY = ""
+YOUR_PASS_KEY = ""
+ENDPOINT_URL = ""
+YOUR_TEXT_MODEL_ID = "Get model id from All Model API"
+YOUR_T2I_MODEL_ID = "Get model id from All Model API"
+
+headers = {
+	"x-fabrix-client": YOUR_CLIENT_KEY,
+	"x-openapi-token": YOUR_PASS_KEY
+}
+
+llm_config = json.dumps(
+	{
+		"max_new_tokens": 2024,
+		"seed": None,
+		"top_k": 14,
+		"top_p": 0.94,
+		"temperature": 0.4,
+		"repetition_penalty": 1.04,
+	}
+)
+
+message_config = json.dumps({"width": 64, "height": 64})
+
+form_data = {
+	"modelIds": [YOUR_TEXT_MODEL_ID, YOUR_T2I_MODEL_ID],
+	"contents": ["강아지 그려줘?"],
+	"llmConfig": llm_config,
+	"isStream": False,
+	"messageConfig": message_config
+}
+
+api_endpoint_url = f"{ENDPOINT_URL}/openapi/chat/v1/message-with-models"
+response = requests.post(api_endpoint_url, headers=headers, data=form_data)
+
+# 응답 반환
+bytes_to_json_data = json.loads(response.content)
+image_base64 = bytes_to_json_data.get("actions")[0].get("answer")
+image_bytes = base64.b64decode(image_base64)
+
+with open("result.png", "wb") as f:
+	f.write(image_bytes)
+```
+
+## 사용 예시 - 이미지 분석(python)
+```
+import requests
+import json
+from fastapi import UploadFile
+import sseclient
+
+YOUR_CLIENT_KEY = ""
+YOUR_PASS_KEY = ""
+ENDPOINT_URL = ""
+YOUR_TEXT_MODEL_ID = "Get model id from All Model API"
+YOUR_T2I_MODEL_ID = "Get model id from All Model API"
+
+file: UploadFile = open("./sample.png", "rb")
+
+headers = {
+	"x-fabrix-client": YOUR_CLIENT_KEY,
+	"x-openapi-token": YOUR_PASS_KEY
+}
+
+llm_config = json.dumps(
+	{
+		"max_new_tokens": 2024,
+		"seed": None,
+		"top_k": 14,
+		"top_p": 0.94,
+		"temperature": 0.4,
+		"repetition_penalty": 1.04,
+	}
+)
+
+form_data = {
+	"modelIds": [YOUR_TEXT_MODEL_ID, YOUR_T2I_MODEL_ID],
+	"contents": ["sample.png 이미지 파일을 분석해줘"],
+	"llmConfig": llm_config,
+	"isStream": True
+}
+
+api_endpoint_url = f"{ENDPOINT_URL}/openapi/chat/v1/message-with-models"
+response = requests.post(api_endpoint_url, headers=headers, data=form_data, files=[("files", file)])
+
+# return response
+if response.status_code != 200:
+	print(f"Error: Status_code=[{response.stastus_code}], Status message=[{response.text}]")
+client = sseclient.SSEClient(response)
+
+# make result contents
+def get_result():
+	for event in client.events():
+		# print(f"Event: {event.event}")
+		print(f"Data: {event.data}")
+		yield event.data
+		
+result_message = ""
+for ch in get_result():
+	ch_json = json.loads(ch)
+	if ch_json['status'] == 'SUCCESS' and ch_json['response_code'] == 'R20000':
+		print("Stream Finished!!")
+	if ch_json['event_status'] == 'CHUNK' and ch_json['content']:
+		result_message += ch_json['content']
+	
+print(result_message)
+```

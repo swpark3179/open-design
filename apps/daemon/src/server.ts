@@ -484,6 +484,7 @@ import { registerHandoffRoutes } from './routes/handoff.js';
 import { EmptyTranscriptError, synthesizeHandoffPrompt } from './handoff-design.js';
 import { TranscriptExportLockedError } from './transcript-export.js';
 import { registerChatRoutes } from './chat-routes.js';
+import { registerFabrixRoutes } from './fabrix/routes.js';
 import { registerTerminalRoutes } from './terminal-routes.js';
 import { createTerminalService } from './terminals.js';
 import { registerSocialShareRoutes } from './social-share-routes.js';
@@ -15476,6 +15477,11 @@ export async function startServer({
     lifecycle: { isDaemonShuttingDown: () => daemonShuttingDown },
     telemetry: { reportFinalizedMessage, reportFeedback },
   });
+
+  // FabriX (Samsung SDS) BYOK provider — self-contained addon routes
+  // (/api/fabrix/* + /api/proxy/fabrix/stream). Credentials persist under
+  // ~/.open-design/fabrix.json and all upstream calls are forced non-proxy.
+  registerFabrixRoutes(app, { projectsRoot: PROJECTS_DIR });
 
   registerStaticSpaFallback(app, STATIC_DIR);
 

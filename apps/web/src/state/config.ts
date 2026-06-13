@@ -66,7 +66,15 @@ export const DEFAULT_CONFIG: AppConfig = {
   // New configs should be explicit. loadConfig() still detects parsed legacy
   // saved configs that did not have this field and migrates those from their
   // saved baseUrl/model before applying the current migration version.
-  apiProtocol: 'anthropic',
+  //
+  // FabriX (Samsung SDS) is the default BYOK provider (requirement #1). The
+  // default execution mode above is 'daemon' (CLI), so this only governs which
+  // BYOK tab is pre-selected once a user switches to API mode — it does not
+  // change the daemon/CLI onboarding path. The anthropic-flavored baseUrl/model
+  // just above stay dormant in daemon mode and are overwritten by
+  // FabrixByokSection's hydration the moment the FabriX panel mounts; existing
+  // users keep whatever apiProtocol they previously saved.
+  apiProtocol: 'fabrix',
   apiVersion: '',
   apiProtocolConfigs: {},
   configMigrationVersion: CONFIG_MIGRATION_VERSION,

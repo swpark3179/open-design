@@ -1044,7 +1044,8 @@ describe('loadConfig', () => {
   });
 
   it('sets an explicit apiProtocol for new default configs', () => {
-    expect(DEFAULT_CONFIG.apiProtocol).toBe('anthropic');
+    // FabriX (Samsung SDS) is the default BYOK provider (requirement #1).
+    expect(DEFAULT_CONFIG.apiProtocol).toBe('fabrix');
     expect(DEFAULT_CONFIG.configMigrationVersion).toBe(1);
     expect(DEFAULT_CONFIG.accentColor).toBe('#c96442');
   });

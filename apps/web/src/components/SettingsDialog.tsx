@@ -122,6 +122,7 @@ import { ProjectLocationsSection } from './ProjectLocationsSection';
 import { RoutinesSection } from './RoutinesSection';
 import { ConnectorsBrowser } from './ConnectorsBrowser';
 import { MemoryModelInline } from './MemoryModelInline';
+import { FabrixByokSection } from './FabrixByokSection';
 import { MemorySection } from './MemorySection';
 import { ByokConnectionTestControl } from './byok/ByokConnectionTestControl';
 import { ByokKeyField } from './byok/ByokKeyField';
@@ -546,6 +547,12 @@ function byokDraftBaseUrlHost(value: string): string | undefined {
 }
 
 const API_KEY_CONSOLE_LINKS: Record<ApiProtocol, { host: string; url: string }> = {
+  // FabriX renders its own credential panel (no single API key), so this entry
+  // is only a structural fallback for the generic form helpers.
+  fabrix: {
+    host: 'FabriX',
+    url: 'https://www.samsungsds.com/',
+  },
   anthropic: {
     host: 'console.anthropic.com',
     url: 'https://console.anthropic.com/settings/keys',
@@ -2576,7 +2583,7 @@ export function SettingsDialog({
   ]);
   useEffect(() => {
     if (cfg.mode !== 'api') return;
-    if (apiProtocol === 'azure' || apiProtocol === 'ollama') return;
+    if (apiProtocol === 'azure' || apiProtocol === 'ollama' || apiProtocol === 'fabrix') return;
     if (byokFirstPartyBaseUrl?.hostTypo) return;
     if (blockingByokDraftIssues(byokModelFetchDraftValidation).length > 0) return;
     // AIHubMix needs no key and prefills its base URL, so there's nothing to
@@ -4012,6 +4019,11 @@ export function SettingsDialog({
                 );
               })()}
             </section>
+          ) : apiProtocol === 'fabrix' ? (
+            // FabriX uses a dedicated panel (two-header auth + model fetch
+            // with capability types) instead of the generic apiKey/baseUrl/
+            // model form. Self-contained addon component.
+            <FabrixByokSection cfg={cfg} setCfg={setCfg} />
           ) : (
             /*
               BYOK panel — wrap the per-protocol form in a bordered card so

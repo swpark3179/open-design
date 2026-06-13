@@ -20,6 +20,10 @@ import type { ApiProtocol } from '../types';
 // completions endpoint speaks the same JSON shape; the deployment name
 // the user types in the model field is what's variable, not the API.
 export const SUGGESTED_MODELS_BY_PROTOCOL: Record<ApiProtocol, readonly string[]> = {
+  // FabriX models are discovered live from the enterprise gateway (no static
+  // suggestions); the FabriX panel and the model switchers fill the list from
+  // the daemon's cached fetch instead.
+  fabrix: [],
   anthropic: [
     'claude-opus-4-5',
     'claude-sonnet-4-5',
@@ -150,6 +154,10 @@ export const SUGGESTED_MODELS_BY_PROTOCOL: Record<ApiProtocol, readonly string[]
 // your OpenAI key") and by anyone else who needs a one-pick default
 // that prioritises latency + cost over reasoning depth.
 export const FAST_MODEL_BY_PROTOCOL: Record<ApiProtocol, string> = {
+  // No deterministic "fast" default for FabriX — the available checkpoints
+  // depend on the enterprise tenant. The empty string lets callers fall back
+  // to the user's selected model.
+  fabrix: '',
   anthropic: 'claude-haiku-4-5',
   openai: 'gpt-4o-mini',
   azure: 'gpt-4o-mini',
@@ -168,6 +176,8 @@ export const API_PROTOCOL_TABS: ReadonlyArray<{
   id: ApiProtocol;
   title: string;
 }> = [
+  // FabriX leads the BYOK provider list (requirement: appear first / default).
+  { id: 'fabrix', title: 'FabriX' },
   { id: 'anthropic', title: 'Anthropic' },
   { id: 'openai', title: 'OpenAI' },
   { id: 'azure', title: 'Azure OpenAI' },
@@ -178,6 +188,7 @@ export const API_PROTOCOL_TABS: ReadonlyArray<{
 ];
 
 export const API_PROTOCOL_LABELS: Record<ApiProtocol, string> = {
+  fabrix: 'Samsung SDS FabriX',
   anthropic: 'Anthropic API',
   openai: 'OpenAI API',
   azure: 'Azure OpenAI',
@@ -188,6 +199,9 @@ export const API_PROTOCOL_LABELS: Record<ApiProtocol, string> = {
 };
 
 export const API_KEY_PLACEHOLDERS: Record<ApiProtocol, string> = {
+  // FabriX uses two custom headers rather than a single API key; the FabriX
+  // panel renders its own fields, so this placeholder is only a fallback.
+  fabrix: 'x-openapi-token',
   anthropic: 'sk-ant-...',
   openai: 'sk-...',
   azure: 'azure key',
@@ -201,6 +215,8 @@ export const API_KEY_PLACEHOLDERS: Record<ApiProtocol, string> = {
 // blank. Kept here so the BYOK form can render it as a placeholder
 // hint and keep the two surfaces (form vs. daemon) in sync.
 export const DEFAULT_BASE_URL_BY_PROTOCOL: Record<ApiProtocol, string> = {
+  // FabriX has no public default endpoint — it is supplied by the user.
+  fabrix: '',
   anthropic: 'https://api.anthropic.com',
   openai: 'https://api.openai.com',
   azure: '',
