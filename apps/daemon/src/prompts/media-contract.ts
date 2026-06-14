@@ -37,13 +37,15 @@ const AUDIO_SFX_IDS = fmtList(AUDIO_MODELS_BY_KIND.sfx.map((m) => m.id));
 
 export function renderMediaGenerationContract(
   mediaExecution?: MediaExecutionPolicy | undefined,
+  fabrixImageModel?: string | undefined,
 ): string {
   const mode = mediaExecution?.mode ?? 'enabled';
   if (mode === 'enabled') {
-    return renderEnabledMediaGenerationContract(mediaExecution);
+    return renderEnabledMediaGenerationContract(mediaExecution, fabrixImageModel);
   }
   const scope = renderMediaPolicyScope(mediaExecution);
   if (mode === 'disabled') {
+    void fabrixImageModel;
     return `
 ---
 
@@ -61,17 +63,19 @@ preference, references, and output filename in chat, then stop. Do not claim a
 file was generated and do not emit an \`<artifact>\` block for media.
 ${scope}`;
   }
-  return renderEnabledMediaGenerationContract(mediaExecution);
+  return renderEnabledMediaGenerationContract(mediaExecution, fabrixImageModel);
 }
 
 function renderEnabledMediaGenerationContract(
   mediaExecution?: MediaExecutionPolicy | undefined,
+  fabrixImageModel?: string | undefined,
 ): string {
   const scope = renderMediaPolicyScope(mediaExecution);
-  if (!scope) return MEDIA_GENERATION_CONTRACT;
-  return MEDIA_GENERATION_CONTRACT.replace(
-    '\n### Allowed model IDs (per surface)',
-    `
+  let contract = MEDIA_GENERATION_CONTRACT;
+  if (scope) {
+    contract = contract.replace(
+      '\n### Allowed model IDs (per surface)',
+      `
 ### Active media policy scope
 
 The dispatcher will reject surfaces or models outside this run's active
@@ -80,6 +84,32 @@ select only from it.
 ${scope}
 
 ### Allowed model IDs (per surface)`,
+    );
+  }
+  if (fabrixImageModel) {
+    contract = applyFabrixImageDefault(contract, fabrixImageModel);
+  }
+  return contract;
+}
+
+/**
+ * Promote the user's FabriX image-generation pick to the top-priority default
+ * image model. When FabriX is configured with an image-generation (T2I) model
+ * in Settings, ANY image the agent generates should route through that model
+ * first — overriding the project metadata's `imageModel` and the generic
+ * `gpt-image-2` fallback — unless the user explicitly names another model.
+ */
+export function applyFabrixImageDefault(contract: string, fabrixImageModel: string): string {
+  const override = `   - **Image, default / no preference stated**: a Samsung SDS FabriX
+     image-generation model is configured in Settings. Use
+     \`${fabrixImageModel}\` as the TOP-PRIORITY default for every image
+     generation — it overrides the project metadata's \`imageModel\` and the
+     generic \`gpt-image-2\` fallback. Only pick a different image model if the
+     user explicitly names one in their message.`;
+  return contract.replace(
+    `   - **Image, default / no preference stated**: use the project metadata's
+     \`imageModel\` if set; otherwise use \`gpt-image-2\``,
+    override,
   );
 }
 

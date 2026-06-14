@@ -305,6 +305,26 @@ printf '%s\\n' "\$last"
 
 For the best fal image model use \`--model flux-pro-ultra\`. For video use \`--model veo-3-fal\` or \`--model wan-2.1-t2v\`. Always pass \`--surface\` explicitly (\`image\`, \`video\`, or \`audio\`). Any \`fal-ai/*\` path (e.g. \`fal-ai/flux/schnell\`, \`fal-ai/wan-i2v\`) is also a valid \`--model\` value for image/video — pass it through as-is without substitution.`;
 
+/**
+ * Mid-chat (non-media-surface project) FabriX image-default directive. When
+ * the user has configured a FabriX image-generation model in Settings, any
+ * image they ask for mid-conversation must route through that model first.
+ */
+function renderFabrixMidChatImagePreference(fabrixImageModel: string): string {
+  return `
+
+---
+
+## Default image model (Samsung SDS FabriX is configured)
+
+If the user asks you to generate an **image** in this conversation, use
+\`"$OD_NODE_BIN" "$OD_BIN" media generate --surface image --model ${fabrixImageModel} …\`
+as the TOP-PRIORITY default. The user has selected this FabriX image-generation
+model in Settings, so it overrides the generic \`flux-pro-ultra\` /
+\`gpt-image-2\` defaults mentioned above. Only pick a different image model if
+the user explicitly names one in their message.`;
+}
+
 export function buildExamplePromptOverride(
   title?: string | null,
   brief?: Record<string, string> | null,
@@ -491,6 +511,10 @@ export interface ComposeInput {
   // Run-scoped media policy. Defaults to enabled when omitted so existing
   // local OD behavior keeps the same media prompt contract.
   mediaExecution?: MediaExecutionPolicy | undefined;
+  // Prefixed FabriX image-generation model id (`fabrix:<modelId>`) resolved
+  // from the user's FabriX Settings pick. When present, the media contract /
+  // dispatch hint promote it to the top-priority default image model.
+  fabrixImageModel?: string | undefined;
 }
 
 export function composeSystemPrompt({
@@ -527,6 +551,7 @@ export function composeSystemPrompt({
   userInstructions,
   projectInstructions,
   mediaExecution,
+  fabrixImageModel,
 }: ComposeInput): string {
   // Injection resistance goes FIRST — before everything else — so no later
   // section (skill body, user instructions, project instructions, tool result)
@@ -779,12 +804,15 @@ export function composeSystemPrompt({
     || resolvedExclusiveSurface === 'video'
     || resolvedExclusiveSurface === 'audio';
   if (isMediaSurface) {
-    parts.push(renderMediaGenerationContract(mediaExecution));
+    parts.push(renderMediaGenerationContract(mediaExecution, fabrixImageModel));
   } else {
     // Non-media projects (prototype, deck, etc.): inject a lightweight hint
     // so the agent uses `od media generate` if the user asks for an image/video
     // mid-session, rather than hunting for provider API keys in the environment.
     parts.push(MEDIA_DISPATCH_HINT);
+    if (fabrixImageModel) {
+      parts.push(renderFabrixMidChatImagePreference(fabrixImageModel));
+    }
   }
 
   if (includeCodexImagegenOverride && shouldAllowCodexImagegenOverride(metadata, mediaExecution)) {

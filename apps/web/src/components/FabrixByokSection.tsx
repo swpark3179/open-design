@@ -19,11 +19,13 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { AppConfig, ApiProtocolConfig } from '../types';
 import {
   FABRIX_MANAGED_API_KEY,
+  fabrixModelHasType,
   fabrixModelKindLabel,
   fetchFabrixConfig,
   fetchFabrixModelsFromDaemon,
   notifyFabrixConfigChanged,
   selectFabrixModel,
+  setFabrixDefaultModels,
   type FabrixModelInfo,
   type FabrixPublicConfig,
 } from '../fabrix/fabrix';
@@ -72,6 +74,8 @@ export function FabrixByokSection({ cfg, setCfg }: Props) {
   const [tokenConfigured, setTokenConfigured] = useState(false);
   const [models, setModels] = useState<FabrixModelInfo[]>([]);
   const [selectedModelId, setSelectedModelId] = useState('');
+  const [imageGenModelId, setImageGenModelId] = useState('');
+  const [imageAnalysisModelId, setImageAnalysisModelId] = useState('');
   const [showSecrets, setShowSecrets] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -85,6 +89,8 @@ export function FabrixByokSection({ cfg, setCfg }: Props) {
       setTokenConfigured(config.tokenConfigured);
       setModels(config.models ?? []);
       setSelectedModelId(config.selectedModelId ?? '');
+      setImageGenModelId(config.defaultT2iModelId ?? '');
+      setImageAnalysisModelId(config.defaultI2tModelId ?? '');
       applyFabrixToConfig(setCfg, {
         endpoint: config.endpointUrl ?? '',
         model: config.selectedModelId ?? '',
@@ -151,7 +157,33 @@ export function FabrixByokSection({ cfg, setCfg }: Props) {
     [setCfg, trimmedEndpoint, ingestConfig],
   );
 
+  const handleSelectImageGenModel = useCallback(
+    async (modelId: string) => {
+      setImageGenModelId(modelId);
+      const config = await setFabrixDefaultModels({ defaultT2iModelId: modelId || null });
+      if (config) ingestConfig(config);
+      notifyFabrixConfigChanged();
+    },
+    [ingestConfig],
+  );
+
+  const handleSelectImageAnalysisModel = useCallback(
+    async (modelId: string) => {
+      setImageAnalysisModelId(modelId);
+      const config = await setFabrixDefaultModels({ defaultI2tModelId: modelId || null });
+      if (config) ingestConfig(config);
+      notifyFabrixConfigChanged();
+    },
+    [ingestConfig],
+  );
+
   const selectedModel = models.find((m) => m.modelId === selectedModelId) ?? null;
+
+  // The two per-surface pickers filter by raw capability `types` (a model may
+  // advertise several), and only unlock once a primary model is selected.
+  const imageGenModels = models.filter((m) => fabrixModelHasType(m, 'T2I'));
+  const imageAnalysisModels = models.filter((m) => fabrixModelHasType(m, 'I2T'));
+  const perSurfaceDisabled = models.length === 0 || !selectedModelId;
 
   return (
     <section className="settings-section settings-section-card settings-section-byok">
@@ -287,6 +319,77 @@ export function FabrixByokSection({ cfg, setCfg }: Props) {
             {selectedModel.description ? ` — ${selectedModel.description}` : ''}
           </span>
         ) : null}
+      </label>
+
+      {/* Image-analysis model (I2T only) — unlocks after a model is selected */}
+      <label className="field">
+        <span className="field-label">이미지 분석 모델 (Image analysis · I2T)</span>
+        <select
+          value={imageAnalysisModelId}
+          disabled={perSurfaceDisabled}
+          onChange={(e) => void handleSelectImageAnalysisModel(e.target.value)}
+          aria-label="FabriX image analysis model"
+          data-testid="fabrix-image-analysis-select"
+        >
+          {perSurfaceDisabled ? (
+            <option value="">먼저 모델을 선택하세요</option>
+          ) : (
+            <>
+              <option value="">선택 안 함</option>
+              {imageAnalysisModels.length === 0 ? (
+                <option value="" disabled>
+                  I2T 모델이 없습니다
+                </option>
+              ) : (
+                imageAnalysisModels.map((m) => (
+                  <option key={m.modelId} value={m.modelId}>
+                    {m.name}
+                    {m.description ? ` — ${m.description.slice(0, 60)}` : ''}
+                  </option>
+                ))
+              )}
+            </>
+          )}
+        </select>
+        <span className="field-inline-status">
+          이미지 분석(I2T) 기능이 있는 모델만 선택할 수 있습니다.
+        </span>
+      </label>
+
+      {/* Image-generation model (T2I only) — wired to the chat-time default */}
+      <label className="field">
+        <span className="field-label">이미지 생성 모델 (Image generation · T2I)</span>
+        <select
+          value={imageGenModelId}
+          disabled={perSurfaceDisabled}
+          onChange={(e) => void handleSelectImageGenModel(e.target.value)}
+          aria-label="FabriX image generation model"
+          data-testid="fabrix-image-gen-select"
+        >
+          {perSurfaceDisabled ? (
+            <option value="">먼저 모델을 선택하세요</option>
+          ) : (
+            <>
+              <option value="">선택 안 함</option>
+              {imageGenModels.length === 0 ? (
+                <option value="" disabled>
+                  T2I 모델이 없습니다
+                </option>
+              ) : (
+                imageGenModels.map((m) => (
+                  <option key={m.modelId} value={m.modelId}>
+                    {m.name}
+                    {m.description ? ` — ${m.description.slice(0, 60)}` : ''}
+                  </option>
+                ))
+              )}
+            </>
+          )}
+        </select>
+        <span className="field-inline-status">
+          이미지 생성(T2I) 모델만 선택할 수 있습니다. 여기서 고른 모델은 대화 중 이미지를
+          생성할 때 최우선으로 사용됩니다.
+        </span>
       </label>
     </section>
   );

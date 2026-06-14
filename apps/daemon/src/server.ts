@@ -487,6 +487,7 @@ import { EmptyTranscriptError, synthesizeHandoffPrompt } from './handoff-design.
 import { TranscriptExportLockedError } from './transcript-export.js';
 import { registerChatRoutes } from './chat-routes.js';
 import { registerFabrixRoutes } from './fabrix/routes.js';
+import { resolveFabrixDefaultImageModel } from './fabrix/config.js';
 import { registerTerminalRoutes } from './terminal-routes.js';
 import { createTerminalService } from './terminals.js';
 import { registerSocialShareRoutes } from './social-share-routes.js';
@@ -11183,6 +11184,12 @@ export async function startServer({
       }
     }
 
+    // Resolve the user's FabriX image-generation pick (if any) so the media
+    // contract / dispatch hint can promote it to the top-priority default
+    // image model. Configured + a stored T2I pick ⇒ `fabrix:<modelId>`, which
+    // the media dispatcher already understands as a catalog-bypass id.
+    const fabrixImageModel = await resolveFabrixDefaultImageModel();
+
     const prompt = composeSystemPrompt({
       agentId,
       includeCodexImagegenOverride: false,
@@ -11220,6 +11227,7 @@ export async function startServer({
       locale: typeof locale === 'string' ? locale : undefined,
       sessionMode: normalizeConversationSessionMode(sessionMode),
       mediaExecution,
+      ...(fabrixImageModel ? { fabrixImageModel } : {}),
       streamFormat,
       connectedExternalMcp: Array.isArray(connectedExternalMcp)
         ? connectedExternalMcp

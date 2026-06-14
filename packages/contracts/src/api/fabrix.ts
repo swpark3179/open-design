@@ -73,6 +73,21 @@ export interface FabrixSelectModelRequest {
   modelId: string;
 }
 
+/**
+ * Persist the user's explicit per-surface image model picks.
+ *
+ * These map onto the stored config's `defaultT2iModelId` (image generation)
+ * and `defaultI2tModelId` (image analysis). An omitted field preserves the
+ * stored value; an explicit `null` clears it. The generation pick
+ * (`defaultT2iModelId`) is what the daemon promotes to the top-priority
+ * default image model for any mid-chat / media-surface generation once
+ * FabriX is configured.
+ */
+export interface FabrixSetDefaultsRequest {
+  defaultT2iModelId?: string | null;
+  defaultI2tModelId?: string | null;
+}
+
 export interface FabrixConfigResponse {
   ok: true;
   config: FabrixPublicConfig;

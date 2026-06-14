@@ -41,6 +41,16 @@ export function fabrixModelsCacheKey(endpointUrl: string): string {
   ].join('\n');
 }
 
+/**
+ * True when a model advertises the given capability type (e.g. `T2I`, `I2T`).
+ * Filtering the per-surface pickers by raw `types` rather than the derived
+ * `kind` matters because a model can carry several types at once, while
+ * `kind` collapses to a single T2I > I2T > TEXT priority.
+ */
+export function fabrixModelHasType(model: FabrixModelInfo, type: string): boolean {
+  return model.types.some((t) => t.toUpperCase() === type.toUpperCase());
+}
+
 /** Concise capability label derived from a model's routing kind. */
 export function fabrixModelKindLabel(kind: FabrixModelKind): string {
   switch (kind) {
@@ -155,6 +165,34 @@ export async function selectFabrixModel(
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ modelId }),
+    });
+    const data = await readEnvelope(response);
+    return data.ok && data.config ? data.config : null;
+  } catch {
+    return null;
+  }
+}
+
+export interface FabrixDefaultsInput {
+  /** T2I (image generation) model id; null clears, omit to preserve. */
+  defaultT2iModelId?: string | null;
+  /** I2T (image analysis) model id; null clears, omit to preserve. */
+  defaultI2tModelId?: string | null;
+}
+
+/**
+ * Persist the per-surface image model picks. The generation pick becomes the
+ * top-priority default image model for any mid-chat / media-surface
+ * generation once FabriX is configured (resolved daemon-side).
+ */
+export async function setFabrixDefaultModels(
+  input: FabrixDefaultsInput,
+): Promise<FabrixPublicConfig | null> {
+  try {
+    const response = await fetch('/api/fabrix/defaults', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
     });
     const data = await readEnvelope(response);
     return data.ok && data.config ? data.config : null;

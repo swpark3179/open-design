@@ -10,6 +10,7 @@
 //   PUT  /api/fabrix/config        → save endpoint + secrets (empty preserves)
 //   POST /api/fabrix/models/fetch  → call all-models (non-proxy), cache, return
 //   POST /api/fabrix/select-model  → persist the chosen model id
+//   POST /api/fabrix/defaults      → persist the per-surface image model picks
 //   POST /api/proxy/fabrix/stream  → chat: routes text vs multipart by model type
 
 import path from 'node:path';
@@ -18,6 +19,7 @@ import { randomBytes } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import {
   findModel,
+  hasType,
   pickDefaultModels,
   readFabrixConfig,
   toPublicConfig,
@@ -187,6 +189,55 @@ export function registerFabrixRoutes(app: Express, deps: RegisterFabrixRoutesDep
     if (!modelId) return sendError(res, 400, 'BAD_REQUEST', 'modelId is required');
     const stored = await readFabrixConfig();
     const next: FabrixStoredConfig = { ...stored, selectedModelId: modelId };
+    await writeFabrixConfig(next);
+    sendJson(res, 200, { ok: true, config: toPublicConfig(next) });
+  });
+
+  // Persist the user's explicit per-surface image model picks. The
+  // generation pick (`defaultT2iModelId`) is what the system-prompt builder
+  // promotes to the top-priority default image model once FabriX is
+  // configured (see resolveFabrixDefaultImageModel in server.ts). Each field
+  // is optional: omitted preserves the stored value, explicit null clears it,
+  // and a non-null id must exist among the fetched models with the matching
+  // capability type (T2I for generation, I2T for analysis).
+  app.post('/api/fabrix/defaults', async (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const stored = await readFabrixConfig();
+
+    const resolvePick = (
+      key: 'defaultT2iModelId' | 'defaultI2tModelId',
+      requiredType: 'T2I' | 'I2T',
+    ): { ok: true; value: string | null } | { ok: false; message: string } => {
+      if (!(key in body)) return { ok: true, value: stored[key] };
+      const raw = body[key];
+      if (raw === null) return { ok: true, value: null };
+      if (typeof raw !== 'string' || !raw.trim()) {
+        return { ok: false, message: `${key} must be a non-empty string, null, or omitted` };
+      }
+      const modelId = raw.trim();
+      const model = findModel(stored, modelId);
+      if (!model) {
+        return { ok: false, message: `Unknown FabriX model: ${modelId}. Fetch models first.` };
+      }
+      if (!hasType(model, requiredType)) {
+        return {
+          ok: false,
+          message: `Model ${modelId} does not advertise ${requiredType} capability.`,
+        };
+      }
+      return { ok: true, value: modelId };
+    };
+
+    const t2i = resolvePick('defaultT2iModelId', 'T2I');
+    if (!t2i.ok) return sendError(res, 400, 'BAD_REQUEST', t2i.message);
+    const i2t = resolvePick('defaultI2tModelId', 'I2T');
+    if (!i2t.ok) return sendError(res, 400, 'BAD_REQUEST', i2t.message);
+
+    const next: FabrixStoredConfig = {
+      ...stored,
+      defaultT2iModelId: t2i.value,
+      defaultI2tModelId: i2t.value,
+    };
     await writeFabrixConfig(next);
     sendJson(res, 200, { ok: true, config: toPublicConfig(next) });
   });

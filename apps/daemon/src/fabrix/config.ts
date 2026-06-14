@@ -174,3 +174,28 @@ export function findModel(
 ): FabrixModelInfo | null {
   return config.models.find((m) => m.modelId === modelId) ?? null;
 }
+
+/** FabriX media model ids carry this prefix in the media dispatcher. */
+export const FABRIX_MEDIA_PREFIX = 'fabrix:';
+
+/**
+ * Resolve the prefixed FabriX image-generation model id the system prompt
+ * should promote as the top-priority default image model, or `null` when
+ * FabriX isn't fully configured or has no image-generation (T2I) pick. The
+ * returned `fabrix:<modelId>` form is the catalog-bypass id the media
+ * dispatcher routes through the FabriX media bridge. Read failures (missing /
+ * unreadable store) degrade silently to `null` so prompt composition never
+ * throws.
+ */
+export async function resolveFabrixDefaultImageModel(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string | null> {
+  try {
+    const stored = await readFabrixConfig(env);
+    if (!toPublicConfig(stored).configured) return null;
+    const t2i = stored.defaultT2iModelId?.trim();
+    return t2i ? `${FABRIX_MEDIA_PREFIX}${t2i}` : null;
+  } catch {
+    return null;
+  }
+}
