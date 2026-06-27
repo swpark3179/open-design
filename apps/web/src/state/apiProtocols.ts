@@ -143,6 +143,10 @@ export const SUGGESTED_MODELS_BY_PROTOCOL: Record<ApiProtocol, readonly string[]
     'qwen3.5:397b',
     'rnj-1:8b',
   ],
+  // Custom providers list their models in the daemon-side config file
+  // (`byok-providers.local.json`), fetched live via /api/byok/custom-providers
+  // and rendered from the selected provider — there are no static suggestions.
+  custom: [],
 };
 
 // "Fast / cheap" model recommendation for each protocol. Used by the
@@ -162,6 +166,9 @@ export const FAST_MODEL_BY_PROTOCOL: Record<ApiProtocol, string> = {
   ollama: 'gemma3:4b',
   senseaudio: 'senseaudio-s2-flash',
   aihubmix: 'gpt-4o-mini',
+  // No deterministic "fast" pick — a custom provider's models are
+  // user-defined; the memory extractor falls back to the active model.
+  custom: '',
 };
 
 export const API_PROTOCOL_TABS: ReadonlyArray<{
@@ -175,6 +182,7 @@ export const API_PROTOCOL_TABS: ReadonlyArray<{
   { id: 'ollama', title: 'Ollama Cloud' },
   { id: 'senseaudio', title: 'SenseAudio' },
   { id: 'aihubmix', title: 'AIHubMix' },
+  { id: 'custom', title: 'Custom' },
 ];
 
 export const API_PROTOCOL_LABELS: Record<ApiProtocol, string> = {
@@ -185,6 +193,7 @@ export const API_PROTOCOL_LABELS: Record<ApiProtocol, string> = {
   ollama: 'Ollama Cloud API',
   senseaudio: 'SenseAudio API',
   aihubmix: 'AIHubMix API',
+  custom: 'Custom Provider',
 };
 
 export const API_KEY_PLACEHOLDERS: Record<ApiProtocol, string> = {
@@ -195,6 +204,9 @@ export const API_KEY_PLACEHOLDERS: Record<ApiProtocol, string> = {
   ollama: 'Ollama API key',
   senseaudio: 'SenseAudio API key',
   aihubmix: 'sk-...',
+  // Custom providers carry their key in the config file's fixed headers, so
+  // the Settings form never prompts for one.
+  custom: '',
 };
 
 // Default base URL the daemon assumes when the user leaves the field
@@ -208,6 +220,8 @@ export const DEFAULT_BASE_URL_BY_PROTOCOL: Record<ApiProtocol, string> = {
   ollama: 'https://ollama.com',
   senseaudio: 'https://api.senseaudio.cn',
   aihubmix: 'https://aihubmix.com/v1',
+  // The endpoint lives in the daemon-side config file, not the Settings form.
+  custom: '',
 };
 
 // Fixed-origin gateways: managed single-endpoint providers where the user only

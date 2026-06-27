@@ -36,6 +36,15 @@ import { proxyDispatcherRequestInit, validateBaseUrlResolved } from '../connecti
 import { googleStreamGenerateContentUrl } from '../integrations/google-models.js';
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { authorizeReasoningEgress, sendReasoningEgressDenial } from '../reasoning-egress.js';
+import {
+  extractText,
+  getCustomProvider,
+  listCustomProviders,
+  renderBody,
+  renderHeaders,
+  type CustomByokTemplateContext,
+} from '../byok-custom-providers.js';
+import type { CustomProxyStreamRequest, ProxyMessage } from '@open-design/contracts';
 
 // Allowlist for the `/feedback` route. Mirrors the
 // ChatMessageFeedbackReasonCode union in packages/contracts/src/api/chat.ts.
@@ -2212,6 +2221,153 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
     runSpeech: executeAIHubMixGenerateSpeech,
     runVideo: executeAIHubMixGenerateVideo,
     routeByModel: true,
+  });
+
+  // ---- Custom BYOK providers (config-file templated) ----------------------
+  // Lists the user-defined custom providers (label + models only — never the
+  // endpoint, headers, or secrets). Mirrors the GET /api/agents discovery
+  // shape so the web picker and `od byok providers list` consume one source.
+  app.get('/api/byok/custom-providers', (_req, res) => {
+    res.json({ providers: listCustomProviders() });
+  });
+
+  // Flatten a ProxyMessage's content into plain text for the {{prompt}} var.
+  const proxyMessageText = (content: ProxyMessage['content']): string => {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content
+        .filter((b): b is { type: 'text'; text: string } => b?.type === 'text')
+        .map((b) => b.text)
+        .join('\n');
+    }
+    return '';
+  };
+
+  // Custom provider chat proxy. The entire request shape — endpoint, headers
+  // (including the API key as a fixed value), body, and the response
+  // text-extraction path — is owned by the daemon-side config file. The
+  // browser only names the provider + model and supplies the conversation.
+  // Non-streaming upstream: we issue one request, extract the text via the
+  // configured JSON path, and replay it as a single SSE delta so the existing
+  // web SSE consumer (`delta`/`end`/`error`) works unchanged.
+  app.post('/api/proxy/custom/stream', async (req, res) => {
+    const proxyBody = (req.body || {}) as Partial<CustomProxyStreamRequest> &
+      Record<string, unknown>;
+    if (rejectProxyPluginContext(proxyBody, res)) return;
+    const { providerId, model, systemPrompt, messages, maxTokens } = proxyBody;
+    if (typeof providerId !== 'string' || !providerId || typeof model !== 'string' || !model) {
+      return sendApiError(res, 400, 'BAD_REQUEST', 'providerId and model are required');
+    }
+
+    const provider = getCustomProvider(providerId);
+    if (!provider) {
+      return sendApiError(res, 404, 'NOT_FOUND', `unknown custom provider "${providerId}"`);
+    }
+    if (!provider.models.some((m) => m.id === model)) {
+      return sendApiError(
+        res,
+        400,
+        'BAD_REQUEST',
+        `model "${model}" is not declared for custom provider "${providerId}"`,
+      );
+    }
+
+    const validated = await validateExternalApiBaseUrl(provider.endpoint);
+    if (validated.error) {
+      return sendApiError(
+        res,
+        validated.forbidden ? 403 : 400,
+        validated.forbidden ? 'FORBIDDEN' : 'BAD_REQUEST',
+        validated.error,
+      );
+    }
+
+    const reasoningDenial = authorizeReasoningEgress({
+      policy: proxyBody.reasoningExecution,
+      routeKind: 'proxy',
+      provider: 'custom',
+      resolvedBaseUrl: provider.endpoint,
+      model,
+    });
+    if (reasoningDenial) return sendReasoningEgressDenial(res, reasoningDenial);
+
+    const safeMessages: ProxyMessage[] = Array.isArray(messages) ? messages : [];
+    const lastUser = [...safeMessages].reverse().find((m) => m.role === 'user');
+    const templateCtx: CustomByokTemplateContext = {
+      model,
+      systemPrompt: typeof systemPrompt === 'string' ? systemPrompt : '',
+      prompt: lastUser ? proxyMessageText(lastUser.content) : '',
+      messages: safeMessages,
+      maxTokens: typeof maxTokens === 'number' && maxTokens > 0 ? maxTokens : 8192,
+    };
+
+    const headers = {
+      'Content-Type': 'application/json',
+      ...renderHeaders(provider.headers, templateCtx),
+    };
+    const body = renderBody(provider.bodyTemplate, templateCtx);
+    console.log(
+      `[proxy:custom] ${provider.method} ${validated.parsed!.hostname} provider=${providerId} model=${model}`,
+    );
+
+    const sse = createSseResponse(res);
+    let proxyDispatcher: ReturnType<typeof proxyDispatcherRequestInit> | null = null;
+    try {
+      proxyDispatcher = proxyDispatcherRequestInit();
+      sse.send('start', { model });
+      const response = await fetch(provider.endpoint, {
+        ...proxyDispatcher.requestInit,
+        method: provider.method ?? 'POST',
+        headers,
+        body: JSON.stringify(body),
+        redirect: 'error',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.error(
+          `[proxy:custom] upstream error: ${response.status} ${redactAuthTokens(errorText)}`,
+        );
+        sendProxyError(sse, `Upstream error: ${response.status}`, {
+          code: proxyErrorCode(response.status),
+          details: errorText,
+          retryable: response.status === 429 || response.status >= 500,
+        });
+        return sse.end();
+      }
+
+      const raw = await response.text();
+      let json: unknown;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        sendProxyError(sse, 'Upstream returned a non-JSON response', {
+          code: 'UPSTREAM_UNAVAILABLE',
+          details: raw.slice(0, 400),
+        });
+        return sse.end();
+      }
+
+      let text: string;
+      try {
+        text = extractText(json, provider.responseTextPath);
+      } catch (err: any) {
+        sendProxyError(sse, err?.message || 'Failed to extract response text', {
+          code: 'OUTPUT_PARSE_FAILED',
+        });
+        return sse.end();
+      }
+
+      if (text) sse.send('delta', { delta: text });
+      sse.send('end', {});
+      sse.end();
+    } catch (err: any) {
+      console.error(`[proxy:custom] internal error: ${err.message}`);
+      sendProxyError(sse, err.message, { code: 'INTERNAL_ERROR' });
+      sse.end();
+    } finally {
+      await proxyDispatcher?.close();
+    }
   });
 
   app.post('/api/proxy/:provider/stream', (req, res) => {
