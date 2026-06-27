@@ -325,6 +325,9 @@ export interface Dict {
   'settings.protocolGroupProtocols': string;
   'settings.protocolGroupGateways': string;
   'settings.customProvider': string;
+  'settings.customProviderHint': string;
+  'settings.customProviderEmpty': string;
+  'settings.customProviderPlaceholder': string;
   'settings.apiKey': string;
   'settings.apiKeyGetLink': string;
   'settings.showKey': string;

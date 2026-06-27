@@ -134,6 +134,7 @@ import { ConnectorsBrowser } from './ConnectorsBrowser';
 import { MemoryModelInline } from './MemoryModelInline';
 import { MemorySection } from './MemorySection';
 import { ByokConnectionTestControl } from './byok/ByokConnectionTestControl';
+import { ByokCustomFields } from './byok/ByokCustomFields';
 import { ByokKeyField } from './byok/ByokKeyField';
 import { ByokModelField } from './byok/ByokModelField';
 import { ByokProviderBaseUrl } from './byok/ByokProviderBaseUrl';
@@ -584,6 +585,12 @@ const API_KEY_CONSOLE_LINKS: Record<ApiProtocol, { host: string; url: string }> 
     host: 'aihubmix.com',
     url: 'https://aihubmix.com/?aff=JA1e',
   },
+  // Custom providers carry credentials in the daemon config file; there is no
+  // console link to surface.
+  custom: {
+    host: '',
+    url: '',
+  },
 };
 
 const AGENT_SHORT_DESCRIPTIONS: Record<string, string> = {
@@ -758,6 +765,7 @@ function currentApiProtocolConfig(config: AppConfig): ApiProtocolConfig {
     byokVideoModel: config.byokVideoModel ?? '',
     byokSpeechModel: config.byokSpeechModel ?? '',
     byokSpeechVoice: config.byokSpeechVoice ?? '',
+    customProviderId: config.customProviderId ?? '',
   };
 }
 
@@ -791,6 +799,10 @@ function applyApiProtocolConfig(
       protocol === 'aihubmix' ? (apiConfig.byokSpeechModel ?? '') : '',
     byokSpeechVoice:
       protocol === 'aihubmix' ? (apiConfig.byokSpeechVoice ?? '') : '',
+    // The selected custom provider only applies to the `custom` protocol;
+    // flipping to another BYOK tab clears it (mirrors the byok* guarding).
+    customProviderId:
+      protocol === 'custom' ? (apiConfig.customProviderId ?? '') : '',
   };
 }
 
@@ -2592,12 +2604,13 @@ export function SettingsDialog({
     protocolProviders.length > 0 && !isFixedOriginGateway(apiProtocol);
   // Fixed-origin gateways resolve their Base URL automatically; nothing for the
   // user to edit, so hide the field entirely.
-  const showBaseUrlField = !isFixedOriginGateway(apiProtocol);
-  const byokRequiresApiKey = byokProviderRequiresApiKey(
-    apiProtocol,
-    selectedProvider,
-    cfg.baseUrl,
-  );
+  // Custom providers own their endpoint + credentials in the daemon config
+  // file, so the Settings form hides the Base URL and API key inputs entirely.
+  const isCustomProtocol = apiProtocol === 'custom';
+  const showBaseUrlField = !isFixedOriginGateway(apiProtocol) && !isCustomProtocol;
+  const byokRequiresApiKey = isCustomProtocol
+    ? false
+    : byokProviderRequiresApiKey(apiProtocol, selectedProvider, cfg.baseUrl);
   const byokFirstPartyBaseUrl = useMemo(
     () => byokFirstPartyBaseUrlHint(
       apiProtocol,
@@ -4343,6 +4356,7 @@ export function SettingsDialog({
                     </span>
                   </div>
                 </div>
+                {isCustomProtocol ? null : (
                 <ByokConnectionTestControl
                   baseUrlValid={baseUrlValid}
                   canRunConnectionTest={
@@ -4371,6 +4385,7 @@ export function SettingsDialog({
                   )}
                   onTestProvider={() => handleTestProvider()}
                 />
+                )}
               </div>
               {byokPreconditionNotice && !byokPreconditionNotice.field ? (
                 <p
@@ -4406,6 +4421,26 @@ export function SettingsDialog({
                   }}
                 />
               ) : null}
+              {isCustomProtocol ? (
+                <ByokCustomFields
+                  providerId={cfg.customProviderId ?? ''}
+                  model={cfg.model}
+                  labels={{
+                    provider: t('settings.customProvider'),
+                    providerHint: t('settings.customProviderHint'),
+                    providerEmpty: t('settings.customProviderEmpty'),
+                    providerPlaceholder: t('settings.customProviderPlaceholder'),
+                    model: t('settings.model'),
+                    required: t('settings.required'),
+                    searchPlaceholder: t('designs.searchPlaceholder'),
+                  }}
+                  onProviderChange={(providerId, firstModel) =>
+                    updateApiConfig({ customProviderId: providerId, model: firstModel })
+                  }
+                  onModelChange={(model) => updateApiConfig({ model })}
+                />
+              ) : null}
+              {isCustomProtocol ? null : (
               <ByokKeyField
                 apiKey={cfg.apiKey}
                 apiKeyConsoleLink={apiKeyConsoleLink}
@@ -4448,6 +4483,7 @@ export function SettingsDialog({
                 }}
                 onToggleShowApiKey={() => setShowApiKey((v) => !v)}
               />
+              )}
               {showBaseUrlField ? (
                 <ByokProviderBaseUrl
                   apiProtocol={apiProtocol}
@@ -4499,6 +4535,7 @@ export function SettingsDialog({
                 />
                 <p className="hint">{t('settings.maxTokensHint')}</p>
               </label>
+              {isCustomProtocol ? null : (
               <ByokModelField
                 customActive={apiModelCustomActive}
                 customInputRef={customModelInputRef}
@@ -4571,6 +4608,8 @@ export function SettingsDialog({
                   updateApiConfig({ model: nextValue });
                 }}
               />
+              )}
+              {isCustomProtocol ? null : (
               <details className="agent-cli-env settings-memory-advanced">
                 <summary className="agent-cli-env-summary">
                   <span className="agent-cli-env-summary-title">
@@ -4596,6 +4635,7 @@ export function SettingsDialog({
                   />
                 </div>
               </details>
+              )}
               {apiProtocol === 'azure' ? (
                 <label className="field">
                   <span className="field-label">{t('settings.apiVersion')}</span>

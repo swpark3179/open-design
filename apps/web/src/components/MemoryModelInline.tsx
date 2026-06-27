@@ -225,8 +225,16 @@ export function MemoryModelInline({
   // derived from the agent id (claude → anthropic, codex → openai,
   // …), while the "Same as chat" default can still run the selected
   // local CLI directly on daemon-supported adapters.
+  // Custom BYOK providers are daemon-config-driven and expose no browser-side
+  // key/baseUrl for the memory extractor to borrow, so they are not a valid
+  // MemoryExtractionProvider. The memory picker is hidden for the custom
+  // protocol (see SettingsDialog), so treat it as "no chat protocol" here.
   const effectiveChatProtocol: MemoryExtractionProvider | null =
-    mode === 'api' ? apiProtocol : chatProtocolFromAgent(cliAgentId);
+    mode === 'api'
+      ? apiProtocol === 'custom'
+        ? null
+        : apiProtocol
+      : chatProtocolFromAgent(cliAgentId);
   const sameAsChatCliLabel =
     mode === 'daemon' ? cliAgentLabel(cliAgentId) : null;
 
@@ -272,7 +280,7 @@ export function MemoryModelInline({
   const buildOverride = useCallback(
     (modelId: string): MemoryExtractionConfigShape => {
       const trimmedModel = modelId.trim();
-      if (mode === 'api') {
+      if (mode === 'api' && apiProtocol !== 'custom') {
         return {
           provider: apiProtocol,
           model: trimmedModel,

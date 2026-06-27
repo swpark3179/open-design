@@ -303,6 +303,7 @@ const SUBCOMMAND_MAP = {
   mcp: runMcp,
   amr: runAmr,
   research: runResearch,
+  byok: runByok,
   plugin: runPlugin,
   ui: runUi,
   marketplace: runMarketplace,
@@ -512,6 +513,9 @@ function printRootHelp() {
   od research search --query <text> [--max-sources 5] [--daemon-url <url>]
       Run agent-callable Tavily research through the local daemon.
 
+  od byok providers list [--json] [--daemon-url <url>]
+      List custom BYOK providers from the daemon config file.
+
   od plugin <list|info|install|uninstall|apply|doctor|replay|trust> [args]
       Discover, install, and apply plugins through the local daemon.
   od plugin publish-repo <folder>
@@ -689,6 +693,85 @@ async function runResearchSearch(rawArgs) {
 async function runArtifacts(args) {
   const { exitCode } = await runArtifactsCli(args);
   process.exit(exitCode);
+}
+
+const BYOK_STRING_FLAGS = new Set(['daemon-url']);
+const BYOK_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
+
+function printByokHelp() {
+  console.log(`Usage:
+  od byok providers list [--json] [--daemon-url <url>]
+
+Lists the custom BYOK providers defined in your daemon config file
+(~/.open-design/byok-providers.local.json, or OD_BYOK_PROVIDERS_CONFIG).
+Only the label and model list are shown — endpoints, headers, and secrets
+stay on the daemon. Mirrors the BYOK "Custom" provider picker in the web UI.
+
+Flags:
+  --json         Emit the raw { "providers": [...] } JSON envelope.
+  --daemon-url   Local daemon URL. Defaults to OD_DAEMON_URL, OD_SIDECAR_IPC_PATH discovery, or http://127.0.0.1:7456.`);
+}
+
+async function runByok(args) {
+  const positionals = args.filter((a) => a && !a.startsWith('--'));
+  const [sub, action] = positionals;
+  if (args.includes('--help') || args.includes('-h') || !sub) {
+    printByokHelp();
+    process.exit(sub ? 0 : 2);
+  }
+  if (sub !== 'providers' || (action && action !== 'list')) {
+    console.error(`unknown subcommand: od byok ${positionals.join(' ')}`);
+    printByokHelp();
+    process.exit(2);
+  }
+  let flags;
+  try {
+    flags = parseFlags(args, { string: BYOK_STRING_FLAGS, boolean: BYOK_BOOLEAN_FLAGS });
+  } catch (err) {
+    console.error(err.message);
+    printByokHelp();
+    process.exit(2);
+  }
+  const daemonUrl = await cliDaemonUrl(flags);
+  const url = `${daemonUrl.replace(/\/$/, '')}/api/byok/custom-providers`;
+  let resp;
+  try {
+    resp = await fetch(url, { method: 'GET' });
+  } catch (err) {
+    surfaceFetchError(err, daemonUrl);
+    process.exit(3);
+  }
+  if (!resp.ok) {
+    const text = await resp.text();
+    console.error(`daemon ${resp.status}: ${text}`);
+    process.exit(4);
+  }
+  const text = await resp.text();
+  if (flags.json) {
+    process.stdout.write(`${text}\n`);
+    return;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    process.stdout.write(`${text}\n`);
+    return;
+  }
+  const providers = Array.isArray(parsed.providers) ? parsed.providers : [];
+  if (providers.length === 0) {
+    console.log(
+      'No custom BYOK providers configured. Define them in ~/.open-design/byok-providers.local.json (or set OD_BYOK_PROVIDERS_CONFIG).',
+    );
+    return;
+  }
+  for (const p of providers) {
+    const models = Array.isArray(p.models)
+      ? p.models.map((m) => m.id).filter(Boolean).join(', ')
+      : '';
+    console.log(`${p.id}  —  ${p.label}`);
+    if (models) console.log(`  models: ${models}`);
+  }
 }
 
 function printResearchHelp() {

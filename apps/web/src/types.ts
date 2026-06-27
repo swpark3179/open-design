@@ -105,7 +105,7 @@ export type {
 } from '@open-design/contracts';
 
 export type ExecMode = 'daemon' | 'api';
-export type ApiProtocol = 'anthropic' | 'openai' | 'azure' | 'google' | 'ollama' | 'senseaudio' | 'aihubmix';
+export type ApiProtocol = 'anthropic' | 'openai' | 'azure' | 'google' | 'ollama' | 'senseaudio' | 'aihubmix' | 'custom';
 
 export type LiveArtifactTabId = `live:${string}`;
 // Tab ids are arbitrary strings; the template-literal members below are
@@ -254,6 +254,11 @@ export interface ApiProtocolConfig {
   byokSpeechModel?: string;
   /** BYOK only — default speech voice id for the generate_speech tool. */
   byokSpeechVoice?: string;
+  /** Custom BYOK protocol only — id of the daemon-defined custom provider the
+   *  user selected (from `~/.open-design/byok-providers.local.json`). The
+   *  endpoint, headers, body template, and response extractor live daemon-side;
+   *  the browser only carries which provider + model (`model`) are active. */
+  customProviderId?: string;
 }
 
 // Per-CLI model + reasoning the user picked in the model menu. Each agent
@@ -380,6 +385,10 @@ export interface AppConfig {
   /** BYOK only — default speech model + voice for the generate_speech tool. */
   byokSpeechModel?: string;
   byokSpeechVoice?: string;
+  /** Custom BYOK protocol only — id of the daemon-defined custom provider the
+   *  user selected. Mirrors apiProtocolConfigs.custom.customProviderId onto
+   *  AppConfig, like apiKey / baseUrl / model are projected. */
+  customProviderId?: string;
   apiProtocolConfigs?: Partial<Record<ApiProtocol, ApiProtocolConfig>>;
   /** Internal config schema/migration version for localStorage upgrades. */
   configMigrationVersion?: number;
