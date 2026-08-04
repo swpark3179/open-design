@@ -25,6 +25,11 @@ import { readProcessStamp } from "@open-design/platform";
 import { join } from "node:path";
 import { app, dialog } from "electron";
 
+import {
+  CLOSED_NETWORK_ENV,
+  parseClosedNetworkArgs,
+  resolveClosedNetwork,
+} from "./closed-network.js";
 import { readPackagedConfig } from "./config.js";
 import {
   claimPackagedDownloadAttribution,
@@ -115,7 +120,23 @@ function applyPackagedUpdaterEnv(updateMetadataUrl: string | null): void {
   process.env.OD_UPDATE_METADATA_URL = updateMetadataUrl;
 }
 
+/**
+ * Resolve closed-network mode once, before anything else can reach the network,
+ * and republish it onto this process's env. Everything downstream then reads a
+ * single already-made decision: the daemon sidecar inherits `OD_CLOSED_NETWORK`
+ * through the packaged child env allowlist, and the desktop updater config
+ * reads the same variable to keep its release-feed poller off.
+ */
+function applyPackagedClosedNetwork(): boolean {
+  const closedNetwork = resolveClosedNetwork({
+    flag: parseClosedNetworkArgs(process.argv.slice(1)),
+  });
+  if (closedNetwork) process.env[CLOSED_NETWORK_ENV] = "1";
+  return closedNetwork;
+}
+
 async function main(): Promise<void> {
+  applyPackagedClosedNetwork();
   const config = await readPackagedConfig();
   const headlessRequest = parsePackagedHeadlessRequest(process.argv.slice(1));
   if (headlessRequest.headless) {

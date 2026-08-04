@@ -6,8 +6,8 @@ Follow the root `AGENTS.md` first. This file only records module-level boundarie
 
 - `apps/web`: Next.js 16 App Router + React 18 web runtime. Entrypoints live in `apps/web/app/`; the main client shell is `apps/web/src/App.tsx`. During local `tools-dev` web runs, `apps/web/next.config.ts` rewrites `/api/*`, `/artifacts/*`, and `/frames/*` to `OD_PORT`.
 - `apps/daemon`: Express + SQLite local daemon and `od` bin. It owns REST/SSE APIs, agent CLI spawning, skills, design systems, artifact persistence, static serving, and daemon-managed data. Before describing or changing daemon data paths, read the root `AGENTS.md` section **Daemon data directory contract**; it is mandatory and must not be restated here.
-- `apps/desktop`: Electron shell. Desktop does not guess the web port; it reads runtime status through sidecar IPC and opens the reported web URL.
-- `apps/packaged`: Thin packaged Electron runtime entry. It starts packaged daemon/web sidecars, registers the `od://` entry protocol, and delegates desktop host behavior to `apps/desktop`.
+- `apps/desktop`: Electron shell. Desktop does not guess the web port; it reads runtime status through sidecar IPC and opens the reported web URL. It never resolves closed-network mode itself — `apps/desktop/src/main/closed-network.ts` is an env-only read of the answer the packaged entry already published, which keeps `updater/config.ts` free of filesystem access.
+- `apps/packaged`: Thin packaged Electron runtime entry. It starts packaged daemon/web sidecars, registers the `od://` entry protocol, and delegates desktop host behavior to `apps/desktop`. It also resolves closed-network mode before anything else runs (`apps/packaged/src/closed-network.ts`, a deliberate twin of the daemon's copy) and republishes it as `OD_CLOSED_NETWORK` for the daemon child and the updater.
 - `apps/landing-page`: Standalone static Astro marketing and public catalog site. It reads canonical repository content at build time, deploys independently, and must not import product-runtime internals from the other apps.
 
 ## Daemon layout

@@ -37,6 +37,7 @@ import {
   EVENT_SCHEMA_VERSION,
 } from '@open-design/contracts/analytics';
 import { readAppConfig } from './app-config.js';
+import { isClosedNetworkEnabled } from './closed-network.js';
 import { readTelemetryEnvironment } from './telemetry-environment.js';
 
 const DEFAULT_HOST = 'https://us.i.posthog.com';
@@ -179,6 +180,11 @@ export interface PosthogConfig {
 export function readPosthogConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): PosthogConfig | null {
+  // Closed-network installs have no PostHog config at all, even when the build
+  // baked in a key. This single null is what silences posthog-node here, and —
+  // via readPublicConfigResponse below — posthog-js and the always-on renderer
+  // error tracker, which otherwise POSTs to us.i.posthog.com outside consent.
+  if (isClosedNetworkEnabled(env)) return null;
   const key = env.POSTHOG_KEY?.trim();
   if (!key) return null;
   const host = (env.POSTHOG_HOST?.trim() || DEFAULT_HOST).replace(/\/+$/, '');

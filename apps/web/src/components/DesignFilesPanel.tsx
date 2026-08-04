@@ -3,6 +3,7 @@ import { useAnalytics } from '../analytics/provider';
 import { trackFileManagerClick } from '../analytics/events';
 import { useT } from '../i18n';
 import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
+import { useClosedNetwork } from '../features/closedNetwork';
 import type { Dict } from '../i18n/types';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { projectFileUrl, projectRawUrl } from '../providers/registry';
@@ -364,13 +365,21 @@ function prefersReducedMotion(): boolean {
 // shown immediately and just cycles.
 function RotatingTip({ auxiliary = false }: { auxiliary?: boolean }) {
   const t = useT();
+  const closedNetwork = useClosedNetwork();
+  // Every community tip carries a `url`; the product tips do not. Filtering on
+  // that rather than on a list of keys means a newly added external tip is
+  // excluded from closed-network installs automatically.
+  const tips = useMemo(
+    () => (closedNetwork ? USEFUL_TIPS.filter((tip) => tip.url == null) : USEFUL_TIPS),
+    [closedNetwork],
+  );
   const [index, setIndex] = useState(0);
   const [typed, setTyped] = useState('');
   // Resolve tips each render but read them through a ref so the typing effect
   // depends only on `index` — depending on the (re-created) array would reset
   // the typewriter on every render and never advance.
   const tipsRef = useRef<string[]>([]);
-  tipsRef.current = USEFUL_TIPS.map(({ key }) => t(key));
+  tipsRef.current = tips.map(({ key }) => t(key));
 
   useEffect(() => {
     const tips = tipsRef.current;
@@ -417,8 +426,8 @@ function RotatingTip({ auxiliary = false }: { auxiliary?: boolean }) {
         <span className="df-useful-info-label">{t('designFiles.usefulInfoLabel')}</span>
       </div>
       <span className="df-useful-info-tip">
-        {USEFUL_TIPS[index]?.url ? (
-          <a className="df-tip-link" href={USEFUL_TIPS[index].url} target="_blank" rel="noreferrer">
+        {tips[index]?.url ? (
+          <a className="df-tip-link" href={tips[index].url} target="_blank" rel="noreferrer">
             {typed}
           </a>
         ) : (

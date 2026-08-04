@@ -649,6 +649,8 @@ export const hu: Dict = {
   'settings.appRuntime': 'Futtatókörnyezet',
   'settings.appPlatform': 'Platform',
   'settings.appArchitecture': 'Architektúra',
+  'settings.appNetwork': 'Hálózat',
+  'settings.appNetworkClosed': 'Zárt hálózat',
   'settings.runtimePackaged': 'Csomagolt alkalmazás',
   'settings.runtimeDevelopment': 'Fejlesztői',
   'settings.versionUnavailable': 'A verzió adatai nem érhetők el, amíg a daemon offline.',

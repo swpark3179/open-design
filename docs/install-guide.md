@@ -181,6 +181,42 @@ All settings live in `deploy/.env`. Edit it directly or re-run the installer to 
 
 The container always binds `127.0.0.1:<port>:7456` — the daemon is never directly exposed to the network. To allow remote access, put an authenticated reverse proxy in front. See [`deploy/README.md`](../deploy/README.md) for the authentication and allowed-origin contract.
 
+### Closed-network (intranet) mode
+
+For corporate intranets and air-gapped machines. When enabled, Open Design makes
+no automatic outbound request — no GitHub star/release lookups, no Discord
+presence, no What's New feed, no analytics, no install attribution, no
+auto-update polling — and hides every SNS, share, and external-link surface in
+the UI, so blocked egress never leaves the app looking broken.
+
+The administrator path is a marker file in the user's home directory. Create it
+once per user account; its contents are ignored:
+
+```bash
+mkdir -p ~/.open-design && touch ~/.open-design/closed-network
+```
+
+Two ad-hoc alternatives, both of which can only turn the mode **on**:
+
+```bash
+OD_CLOSED_NETWORK=1 od          # environment variable
+od --closed-network             # launch flag
+```
+
+The marker file wins over both — `OD_CLOSED_NETWORK=0` cannot unlock a machine an
+administrator locked down. Set `OD_USER_STATE_DIR` to relocate the directory the
+marker is read from.
+
+Verify it took effect:
+
+```bash
+od daemon status --json | jq .closedNetwork      # true
+```
+
+Still allowed, because these are the endpoints the product actually works
+against: your configured LLM / BYOK provider, Tavily research, and the deploy
+providers. Point them at your internal hosts as usual.
+
 ## Troubleshooting
 
 | Problem | Likely cause | Fix |

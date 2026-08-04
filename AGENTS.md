@@ -59,6 +59,55 @@ This file is the single source of truth for agents entering this repository. Rea
 - Ports are governed by `tools-dev` flags: `--daemon-port` and `--web-port`.
 - `tools-dev` exports `OD_PORT` for the web proxy target and `OD_WEB_PORT` for the web listener; do not use `NEXT_PORT`.
 
+## Closed-network mode
+
+Closed-network mode is the deployment switch for intranet / air-gapped installs.
+When it is on, the product makes **no automatic outbound request** and hides
+every SNS, share, and external-link surface.
+
+Resolved from three sources, **highest precedence first**:
+
+1. Marker file at `<OD_USER_STATE_DIR | ~/.open-design>/closed-network`. Presence
+   enables the mode; content is ignored. This is the administrator-deployment
+   path and is authoritative — `OD_CLOSED_NETWORK=0` does **not** defeat it.
+2. `OD_CLOSED_NETWORK` env var (strict parse: `1/true/yes/on` vs `0/false/no/off`;
+   anything else is a hard error). It can only turn the mode **on**.
+3. `--closed-network` launch flag on `od`, `pnpm tools-dev`, and the packaged
+   desktop entry. Implemented by setting (2) before the daemon resolves it.
+
+The marker file lives in the **user-state dir**, not the daemon data dir — it must
+apply to every launch, while `OD_DATA_DIR` is project-local in development and
+namespace-scoped when packaged. It is therefore outside the **Daemon data
+directory contract** below; do not move it there.
+
+The mode is administrator-owned and read-only to clients. It is deliberately
+absent from `AppConfigPrefs`/`ALLOWED_KEYS`, so no `PUT /api/app-config` can turn
+it off. The daemon reports it on `GET /api/daemon/status` (beside `sandboxMode`),
+which is what `od daemon status --json`, `od doctor`, and the web bootstrap read.
+
+Resolution lives in `apps/daemon/src/closed-network.ts`, with a deliberate twin in
+`apps/packaged/src/closed-network.ts` (the packaged main process must decide
+before spawning the daemon, and app packages must not import another app's
+private `src/`) and a lenient env-only reader in
+`apps/desktop/src/main/closed-network.ts`. Keep the precedence table identical
+across all three; their tests assert the same matrix.
+
+Blocked when on: GitHub repo/release metadata, Discord presence, the What's New
+feed, PostHog and Langfuse/relay telemetry, install attribution, the packaged
+auto-updater, the newsletter signup, and user-initiated GitHub / shadcn /
+community-pet / marketplace fetches (these fail fast with a readable error
+instead of hanging on a connect timeout).
+
+Not blocked: LLM and BYOK provider endpoints, Tavily research, Vercel/Cloudflare
+deploy, the `unpkg` artifact-preview runtime, and decorative remote images
+(favicons, avatars, style thumbnails) which degrade to placeholders on their own.
+`apps/web/src/index.css` still `@import`s Google Fonts unconditionally — the one
+remaining unconditional third-party request from the renderer.
+
+When adding a surface that reaches the network or links off-box, gate it: the
+daemon side on the resolved `RUNTIME_CLOSED_NETWORK`, the web side on
+`useClosedNetwork()` / `isClosedNetwork()` from `apps/web/src/features/closedNetwork.ts`.
+
 ## Daemon data directory contract
 
 This section is the only repository-wide source of truth for daemon-managed
@@ -308,6 +357,7 @@ pnpm tools-dev
 pnpm tools-serve start updater
 pnpm tools-dev start web
 pnpm tools-dev run web --daemon-port 17456 --web-port 17573
+pnpm tools-dev run web --closed-network --daemon-port 17458 --web-port 17575
 pnpm tools-dev status --json
 pnpm tools-dev logs --json
 pnpm tools-dev inspect desktop status --json

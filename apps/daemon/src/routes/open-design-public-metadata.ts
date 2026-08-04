@@ -1,10 +1,14 @@
-import type { Express } from 'express';
+import type { Express, Response } from 'express';
 import type {
   OpenDesignDiscordPresenceResponse,
   OpenDesignGithubLatestReleaseResponse,
   OpenDesignGithubRepoResponse,
 } from '@open-design/contracts';
 import type { RouteDeps } from '../server-context.js';
+import {
+  CLOSED_NETWORK_ERROR_CODE,
+  isClosedNetworkError,
+} from '../closed-network.js';
 import {
   OPEN_DESIGN_DISCORD_INVITE_URL,
   type OpenDesignPublicMetadataService,
@@ -16,6 +20,19 @@ export interface RegisterOpenDesignPublicMetadataRoutesDeps extends RouteDeps<'h
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Closed-network refusals are 503 with a machine-readable code so a caller can
+ * tell "policy says no" apart from the 502 that means GitHub/Discord is down.
+ * Every handler here reaches the public internet, so they share one mapper.
+ */
+function sendUpstreamFailure(res: Response, error: unknown): void {
+  if (isClosedNetworkError(error)) {
+    res.status(503).json({ error: CLOSED_NETWORK_ERROR_CODE, message: errorMessage(error) });
+    return;
+  }
+  res.status(502).json({ error: errorMessage(error) });
 }
 
 export function registerOpenDesignPublicMetadataRoutes(
@@ -35,7 +52,7 @@ export function registerOpenDesignPublicMetadataRoutes(
       };
       res.json(payload);
     } catch (error) {
-      res.status(502).json({ error: errorMessage(error) });
+      sendUpstreamFailure(res, error);
     }
   });
 
@@ -51,7 +68,7 @@ export function registerOpenDesignPublicMetadataRoutes(
       };
       res.json(payload);
     } catch (error) {
-      res.status(502).json({ error: errorMessage(error) });
+      sendUpstreamFailure(res, error);
     }
   });
 
@@ -68,7 +85,7 @@ export function registerOpenDesignPublicMetadataRoutes(
       };
       res.json(payload);
     } catch (error) {
-      res.status(502).json({ error: errorMessage(error) });
+      sendUpstreamFailure(res, error);
     }
   });
 }

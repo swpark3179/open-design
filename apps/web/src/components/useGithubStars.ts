@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import type { OpenDesignGithubRepoResponse } from '@open-design/contracts';
+import { isClosedNetwork } from '../features/closedNetwork';
 
 const API = '/api/github/open-design';
 const REPO = 'https://github.com/nexu-io/open-design';
@@ -106,6 +107,11 @@ export function useGithubStars(): number | null {
   });
 
   useEffect(() => {
+    // Closed-network installs never ask. The badge is already unmounted in that
+    // mode (see EntryShell), and the daemon refuses the request anyway — this
+    // guard just keeps the "no outbound attempt" property true for any future
+    // caller of the hook.
+    if (isClosedNetwork()) return;
     const now = Date.now();
     const cached = memoryCache ?? readPersistedCache();
     if (cached && now - cached.ts < CACHE_TTL_MS) {

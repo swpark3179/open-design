@@ -673,7 +673,7 @@ async function runDirectionsToolCli(args) {
 
 function printRootHelp() {
   console.log(`Usage:
-  od [--port <n>] [--host <addr>] [--no-open]
+  od [--port <n>] [--host <addr>] [--no-open] [--closed-network]
       Start the local daemon and open the web UI.
 
   od tools live-artifacts <create|list|update|refresh> [options]
@@ -765,6 +765,13 @@ Options:
                    Set to a specific IP (e.g. a Tailscale address) to restrict access
                    to that interface only.
   --no-open        Do not open the browser after start.
+  --closed-network Intranet / air-gapped mode (env: OD_CLOSED_NETWORK). Makes no
+                   automatic outbound request — GitHub stars, Discord presence,
+                   What's New, analytics, install attribution, auto-update — and
+                   hides the SNS / share / external-link surfaces in the UI.
+                   Administrators can enable it for every launch instead by
+                   creating the file ~/.open-design/closed-network, which takes
+                   precedence over this flag and the env var.
 
 What the daemon does:
   * scans PATH for installed code-agent CLIs (claude, codex, devin, opencode, cursor-agent, ...)
@@ -8515,7 +8522,12 @@ async function runDaemonStatus(flags) {
   if (!resp.ok) return structuredHttpFailure(resp);
   const data = await resp.json();
   if (flags.json) return process.stdout.write(JSON.stringify(data, null, 2) + '\n');
-  console.log(`[daemon] ${data.bindHost}:${data.port} v${data.version} pid=${data.pid} plugins=${data.installedPlugins}`);
+  const modes = [
+    data.sandboxMode ? 'sandbox' : null,
+    data.closedNetwork ? 'closed-network' : null,
+  ].filter(Boolean);
+  const modeSuffix = modes.length > 0 ? ` mode=${modes.join(',')}` : '';
+  console.log(`[daemon] ${data.bindHost}:${data.port} v${data.version} pid=${data.pid} plugins=${data.installedPlugins}${modeSuffix}`);
 }
 
 async function runDaemonStop(flags) {
@@ -9561,6 +9573,9 @@ or the daemon cannot be reached.`);
     process.stdout.write(JSON.stringify(report, null, 2) + '\n');
   } else {
     console.log(`[doctor] daemon ${report.daemon?.bindHost ?? '?'}:${report.daemon?.port ?? '?'} pid=${report.daemon?.pid ?? '?'}`);
+    if (report.daemon?.closedNetwork) {
+      console.log('[doctor] closed-network mode: on (no outbound requests; SNS/share UI hidden)');
+    }
     console.log(`[doctor] plugins: ${report.plugins.length} (skills ${report.skills.length}, design-systems ${report.designSystems.length}, atoms ${report.atoms.length})`);
     if (report.issues.length === 0) {
       console.log('[doctor] no issues');

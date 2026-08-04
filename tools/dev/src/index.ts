@@ -72,6 +72,7 @@ import { loadWorkspaceLocalEnv } from "./local-env.js";
 import { resolveSharedPortsFromRunningState } from "./shared-ports.js";
 
 type CliOptions = ToolDevOptions & {
+  closedNetwork?: boolean;
   envFile?: string | string[];
   expr?: string;
   noEnvFile?: boolean;
@@ -451,6 +452,11 @@ async function spawnDaemonRuntime(
         ...(webPort == null ? {} : { [SIDECAR_ENV.WEB_PORT]: String(webPort) }),
         ...(options.parentPid == null ? {} : { [TOOLS_DEV_PARENT_PID_ENV]: String(options.parentPid) }),
         ...(spawnOptions.requireDesktopAuth ? { OD_REQUIRE_DESKTOP_AUTH: "1" } : {}),
+        // Closed-network (intranet) mode for this dev daemon. The flag can only
+        // turn it on; the daemon still resolves the ~/.open-design marker file
+        // and OD_CLOSED_NETWORK itself. Two namespaces — one with the flag, one
+        // without — is the intended way to compare the two UIs side by side.
+        ...(options.closedNetwork === true ? { OD_CLOSED_NETWORK: "1" } : {}),
       },
       logHandle,
     });
@@ -1150,6 +1156,7 @@ function addPortOptions(command: ReturnType<typeof cli.command>) {
   return command
     .option("--daemon-port <port>", "force daemon port; conflict quick-fails")
     .option("--web-port <port>", "force web port; conflict quick-fails")
+    .option("--closed-network", "run the daemon in closed-network (intranet) mode: no outbound requests, SNS/share UI hidden")
     .option("--prod", "use production build (requires pnpm --filter @open-design/web build first)");
 }
 

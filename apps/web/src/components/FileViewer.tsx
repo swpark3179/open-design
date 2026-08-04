@@ -70,6 +70,7 @@ import {
   measurePreviewBlockOffsets,
 } from './markdown-scroll-sync';
 import { useT, useI18n } from '../i18n';
+import { useClosedNetwork } from '../features/closedNetwork';
 import { useDismissOnOutsideInteraction } from '../hooks/useDismissOnOutsideInteraction';
 import {
   notifyTeamProjectsChanged,
@@ -7262,6 +7263,9 @@ function HtmlViewer({
   // user) otherwise. From the ProjectView-provided collab context — no props to
   // thread, no second collab client.
   const collab = useProjectCollabContext();
+  // Drives `canShareExternally` and the deploy modal's social block; the
+  // download/export paths are deliberately untouched by it.
+  const closedNetwork = useClosedNetwork();
   // Latest per-slide capture progress for the programmatic exporters, read by
   // the loading-toast ticker in fireShareExport to render elapsed time + ETA.
   const exportProgressRef = useRef<{ done: number; total: number } | null>(null);
@@ -13064,6 +13068,17 @@ function HtmlViewer({
   const rawCanDownload = source !== null && (isShareableArtifact || isMarkdownArtifact);
   const canShare = rawCanShare && !viewerOnly;
   const canDownload = rawCanDownload && !viewerOnly;
+  // The Share dropdown has exactly three sections — copy/open a share page,
+  // Publish online (Vercel/Cloudflare), and social share — and every one of
+  // them needs the public internet. Closed-network installs lose the whole
+  // dropdown rather than an empty menu. Deliberately a separate predicate from
+  // `canShare`, which also gates the PPTX and image exports: those write to
+  // disk and must keep working. See features/closedNetwork.ts.
+  const canShareExternally = canShare && !closedNetwork;
+  // Same split for the raw (viewerOnly-ignoring) predicate: a closed network
+  // removes the share affordance outright rather than showing it disabled,
+  // because no permission change can ever make it work.
+  const rawCanShareExternally = rawCanShare && !closedNetwork;
   // PPTX export is slide-based, so show it only for explicit decks plus
   // structured deck runtimes. Do not key this off plain `.slide`: ordinary
   // parallax/long pages may use that class but must remain page-mode exports.
@@ -13178,13 +13193,16 @@ function HtmlViewer({
     const nonce = shareRequest?.nonce;
     if (nonce == null) return;
     if (consumedShareNonceRef.current === nonce) return;
-    if (!canShare) return;
+    // In closed-network mode the menu this would open does not render, so
+    // consume nothing and leave the nonce for a future (impossible) open
+    // rather than silently marking the nudge seen.
+    if (!canShareExternally) return;
     consumedShareNonceRef.current = nonce;
     setExportReadyNudge(false);
     markExportReadyNudgeSeen(projectId, file.name);
     setUnifiedActionTab('share');
     setDeployMenuOpen(true);
-  }, [shareRequest?.nonce, canShare, projectId, file.name]);
+  }, [shareRequest?.nonce, canShareExternally, projectId, file.name]);
 
   // Parallel to shareRequest, but opens the Download / Export menu instead — the
   // assistant "next step" card's Download row routes here so it surfaces the same
@@ -13235,7 +13253,7 @@ function HtmlViewer({
     setExportReadyNudge(false);
     markExportReadyNudgeSeen(projectId, file.name);
     setDeployMenuOpen((v) => {
-      const nextTab = tab === 'share' && !rawCanShare ? 'export' : tab;
+      const nextTab = tab === 'share' && !rawCanShareExternally ? 'export' : tab;
       setUnifiedActionTab(nextTab);
       return !(v && unifiedActionTab === nextTab);
     });
@@ -14772,7 +14790,7 @@ function HtmlViewer({
                     aria-label={shareMenuLabel}
                     disabled={viewerOnly}
                     title={viewerOnly ? viewerOnlyDisabledTitle : undefined}
-                    onClick={rawCanShare ? openShareMenu : openDownloadMenu}
+                    onClick={rawCanShareExternally ? openShareMenu : openDownloadMenu}
                   >
                     <RemixIcon name="share-forward-line" size={15} />
                     <span>{shareMenuLabel}</span>
@@ -14782,7 +14800,7 @@ function HtmlViewer({
                   <div className="share-menu-popover chrome-unified-popover" role="menu">
                     <div className="chrome-unified-tabs" role="tablist" aria-label={t('fileViewer.unifiedShareAria')}>
                       {([
-                        ...(rawCanShare ? [['share', t('fileViewer.unifiedShareTab')] as const] : []),
+                        ...(rawCanShareExternally ? [['share', t('fileViewer.unifiedShareTab')] as const] : []),
                         ...(rawCanDownload ? [['export', t('fileViewer.unifiedExportTab')] as const] : []),
                         ['send', t('fileViewer.unifiedSendTab')] as const,
                       ]).map(([tab, label]) => (
@@ -14798,7 +14816,7 @@ function HtmlViewer({
                         </button>
                       ))}
                     </div>
-                    {unifiedActionTab === 'share' && rawCanShare ? (
+                    {unifiedActionTab === 'share' && rawCanShareExternally ? (
                       <div className="chrome-unified-panel chrome-unified-panel--share">
                       {/* Team-only, same as ReactComponentViewer's copy of this card above —
                           see the comment there (recvq5bM78HWCE). */}
@@ -16022,6 +16040,10 @@ function HtmlViewer({
                 <p className="subtitle">{deployModalSubtitle}</p>
               </div>
               <div className="deploy-form">
+                {/* Defensive: the Share dropdown that normally opens this modal
+                    is already hidden in closed-network mode, but the modal has
+                    other entry points and its social block is pure outbound. */}
+                {closedNetwork ? null : (
                 <div className={`deploy-social-share${activeProjectSocialShare ? '' : ' is-locked'}${socialShareBlockedState ? ` is-${socialShareBlockedState}` : ''}`}>
                   <div className="deploy-social-share__head">
                     <div className="deploy-social-share__label">
@@ -16076,6 +16098,7 @@ function HtmlViewer({
                     </div>
                   ) : null}
                 </div>
+                )}
               <label className="deploy-provider-field">
                 <span className="deploy-field-title">{t('fileViewer.deployProviderLabel')}</span>
                 <select

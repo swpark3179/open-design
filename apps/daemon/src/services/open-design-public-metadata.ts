@@ -1,3 +1,5 @@
+import { assertOutboundAllowed } from '../closed-network.js';
+
 export interface OpenDesignGithubRepoStats {
   stargazersCount: number;
   fetchedAt: number;
@@ -64,6 +66,12 @@ interface DiscordInvitePayload {
 export interface OpenDesignPublicMetadataServiceOptions {
   fetchImpl?: typeof fetch;
   now?: () => number;
+  /**
+   * Closed-network mode. Every read throws {@link ClosedNetworkError} before
+   * `fetchImpl` is touched, so the guard holds for any caller of this service —
+   * not just the three route handlers that exist today.
+   */
+  closedNetwork?: boolean;
 }
 
 const OPEN_DESIGN_GITHUB_REPO_API = 'https://api.github.com/repos/nexu-io/open-design';
@@ -96,6 +104,7 @@ function withFreshness<T extends { fetchedAt: number }>(
 export function createOpenDesignPublicMetadataService({
   fetchImpl = fetch,
   now = () => Date.now(),
+  closedNetwork = false,
 }: OpenDesignPublicMetadataServiceOptions = {}): OpenDesignPublicMetadataService {
   let githubRepoCache: CachedGithubRepoStats | null = null;
   let githubRepoInflight: Promise<OpenDesignGithubRepoStats> | null = null;
@@ -105,6 +114,7 @@ export function createOpenDesignPublicMetadataService({
   let discordPresenceInflight: Promise<OpenDesignDiscordPresence> | null = null;
 
   async function readGithubRepoStats(): Promise<OpenDesignGithubRepoStats> {
+    assertOutboundAllowed(closedNetwork, 'GitHub repository metadata');
     const currentTime = now();
     if (
       githubRepoCache &&
@@ -149,6 +159,7 @@ export function createOpenDesignPublicMetadataService({
   }
 
   async function readLatestReleaseInfo(): Promise<OpenDesignGithubLatestReleaseInfo> {
+    assertOutboundAllowed(closedNetwork, 'GitHub release metadata');
     const currentTime = now();
     if (
       githubLatestReleaseCache &&
@@ -194,6 +205,7 @@ export function createOpenDesignPublicMetadataService({
   }
 
   async function readDiscordPresence(): Promise<OpenDesignDiscordPresence> {
+    assertOutboundAllowed(closedNetwork, 'Discord community presence');
     const currentTime = now();
     if (
       discordPresenceCache &&

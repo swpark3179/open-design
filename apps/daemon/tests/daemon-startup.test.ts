@@ -7,6 +7,7 @@ describe('daemon startup CLI parsing', () => {
     expect(parseDaemonCliStartupArgs(['--host', '0.0.0.0', '--port', '8123', '--no-open'], {})).toEqual({
       ok: true,
       config: {
+        closedNetwork: false,
         host: '0.0.0.0',
         open: false,
         port: 8123,
@@ -18,6 +19,7 @@ describe('daemon startup CLI parsing', () => {
     expect(parseDaemonCliStartupArgs([], { OD_BIND_HOST: '127.0.0.2', OD_PORT: '7345' })).toEqual({
       ok: true,
       config: {
+        closedNetwork: false,
         host: '127.0.0.2',
         open: true,
         port: 7345,
@@ -29,6 +31,7 @@ describe('daemon startup CLI parsing', () => {
     expect(parseDaemonCliStartupArgs([], { OD_BIND_HOST: '   ' })).toEqual({
       ok: true,
       config: {
+        closedNetwork: false,
         host: '127.0.0.1',
         open: true,
         port: 7456,
@@ -37,6 +40,7 @@ describe('daemon startup CLI parsing', () => {
     expect(parseDaemonCliStartupArgs(['--host', '   '], {})).toEqual({
       ok: true,
       config: {
+        closedNetwork: false,
         host: '127.0.0.1',
         open: true,
         port: 7456,
@@ -70,6 +74,21 @@ describe('daemon startup CLI parsing', () => {
       ok: false,
       kind: 'error',
       message: '--port requires a port',
+    });
+  });
+
+  // The flag is a request, not the resolution: runDaemonCliStartup turns it
+  // into OD_CLOSED_NETWORK before importing the server, which then resolves
+  // the marker file and env in one place. See apps/daemon/src/closed-network.ts.
+  it('parses --closed-network alongside the other startup flags', () => {
+    expect(parseDaemonCliStartupArgs(['--closed-network', '--no-open'], {})).toEqual({
+      ok: true,
+      config: {
+        closedNetwork: true,
+        host: '127.0.0.1',
+        open: false,
+        port: 7456,
+      },
     });
   });
 });

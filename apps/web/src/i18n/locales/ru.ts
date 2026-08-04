@@ -649,6 +649,8 @@ export const ru: Dict = {
   'settings.appRuntime': 'Среда запуска',
   'settings.appPlatform': 'Платформа',
   'settings.appArchitecture': 'Архитектура',
+  'settings.appNetwork': 'Сеть',
+  'settings.appNetworkClosed': 'Закрытая сеть',
   'settings.runtimePackaged': 'Упакованное приложение',
   'settings.runtimeDevelopment': 'Разработка',
   'settings.versionUnavailable': 'Сведения о версии недоступны, пока daemon не запущен.',

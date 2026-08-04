@@ -29,6 +29,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { isIP } from 'node:net';
 import path from 'node:path';
 
+import { isClosedNetworkEnabled } from '../closed-network.js';
 import {
   LocalDesignSystemImportError,
   type LocalDesignSystemImportOptions,
@@ -268,6 +269,15 @@ function assertFetchableUrl(url: URL): void {
     );
   }
   if (hostClass === 'loopback') return;
+  // Closed-network installs may still import from a loopback mirror (handled
+  // above), but never from a public registry host. Refusing here — before the
+  // request is built — turns a 30s connect timeout into an instant, readable
+  // error. See closed-network.ts.
+  if (isClosedNetworkEnabled()) {
+    throw badReference(
+      `refusing to fetch "${url.hostname}": closed-network mode allows only loopback registry hosts`,
+    );
+  }
   if (protocol !== 'https:') {
     throw badReference(
       'only https:// is allowed for non-loopback registry hosts (http:// is allowed for localhost only)',

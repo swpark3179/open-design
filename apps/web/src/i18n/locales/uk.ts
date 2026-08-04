@@ -649,6 +649,8 @@ export const uk: Dict = {
   'settings.appRuntime': 'Середовище виконання',
   'settings.appPlatform': 'Платформа',
   'settings.appArchitecture': 'Архітектура',
+  'settings.appNetwork': 'Мережа',
+  'settings.appNetworkClosed': 'Закрита мережа',
   'settings.runtimePackaged': 'Упакований додаток',
   'settings.runtimeDevelopment': 'Розробка',
   'settings.versionUnavailable': 'Деталі версії недоступні, поки фоновий процес перебуває в офлайні.',

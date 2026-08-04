@@ -8,6 +8,7 @@ Follow the root `AGENTS.md` first. This file only records module-level boundarie
 - `pnpm tools-dev` manages daemon -> web -> desktop.
 - `pnpm tools-dev run web` runs foreground daemon + web for the Playwright webServer flow.
 - `pnpm tools-dev inspect desktop ...` inspects the desktop runtime through sidecar IPC.
+- `pnpm tools-dev start|run --closed-network` puts the dev daemon in closed-network (intranet) mode by exporting `OD_CLOSED_NETWORK=1` into its child env. The flag can only turn the mode on; the daemon still resolves the `~/.open-design/closed-network` marker file itself. Two namespaces — one with the flag, one without — is the intended way to compare the two UIs side by side. See the root `AGENTS.md` section **Closed-network mode**.
 - `tools/pack` provides `@open-design/tools-pack` and the `tools-pack` bin. The active slice is packaged artifact build/install/start/stop/logs/uninstall/cleanup/list/reset plus beta release artifact preparation for mac and Windows lanes, plus a Linux AppImage lane with optional containerized builds.
 - `tools/serve` provides `@open-design/tools-serve` and the `tools-serve` bin. It owns local fixture services such as `tools-serve start updater`.
 - `tools/release` provides `@open-design/tools-release` and the `tools-release` bin. It owns release metadata, storage publishing, release reports, and notification-facing file/data contracts; artifact build, cache, installer, payload, and smoke work stays in `tools/pack`.

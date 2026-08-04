@@ -306,6 +306,7 @@ import {
   isSandboxModeEnabled,
   resolveSandboxRuntimeConfig,
 } from './sandbox-mode.js';
+import { isClosedNetworkEnabled } from './closed-network.js';
 import {
   backfillDesignSystemWorkspaceResources,
   buildUserDesignSystemArchive,
@@ -1094,6 +1095,10 @@ const {
 });
 
 const SANDBOX_MODE_ENABLED = isSandboxModeEnabled(process.env);
+// Closed-network (intranet / air-gapped) mode. Resolved exactly once here, the
+// same way SANDBOX_MODE_ENABLED is, and threaded into every service that can
+// open an outbound socket. See closed-network.ts for the precedence rules.
+const RUNTIME_CLOSED_NETWORK = isClosedNetworkEnabled(process.env);
 const RUNTIME_DATA_DIR = resolveDataDir(process.env.OD_DATA_DIR, PROJECT_ROOT, {
   requireExplicit: SANDBOX_MODE_ENABLED,
 });
@@ -6546,17 +6551,20 @@ export async function startServer({
     getResolvedPort: () => resolvedPort,
     getDaemonShuttingDown: () => daemonShuttingDown,
     sandboxRuntime: SANDBOX_RUNTIME,
+    closedNetwork: RUNTIME_CLOSED_NETWORK,
     env: process.env,
   });
 
-  const openDesignPublicMetadata = createOpenDesignPublicMetadataService();
+  const openDesignPublicMetadata = createOpenDesignPublicMetadataService({
+    closedNetwork: RUNTIME_CLOSED_NETWORK,
+  });
   registerOpenDesignPublicMetadataRoutes(app, {
     http: httpDeps,
     openDesignPublicMetadata,
   });
 
   registerWhatsNewRoutes(app, {
-    whatsNew: createWhatsNewService(),
+    whatsNew: createWhatsNewService({ closedNetwork: RUNTIME_CLOSED_NETWORK }),
   });
 
   registerPluginEventRoutes(app, {

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { safeExternalFetch } from './plugin-asset-cache.js';
 import path from 'node:path';
+import { isClosedNetworkEnabled } from '../closed-network.js';
 
 export const OFFICIAL_MARKETPLACE_ID = 'official';
 export const OFFICIAL_PLUGIN_SOURCE_REPO = 'github:nexu-io/open-design@main';
@@ -88,6 +89,17 @@ export function createMarketplaceSeedHelpers(deps: MarketplaceSeedHelperDeps): M
             text: async () => manifestText,
           };
         }
+      }
+      // The bundled manifest above is on disk and keeps working offline. Only
+      // the remote fallback is refused, so a closed-network install still sees
+      // the official marketplace, just never a freshly fetched one.
+      if (isClosedNetworkEnabled()) {
+        return {
+          ok: false,
+          status: 503,
+          text: async () =>
+            `marketplace manifest fetch for ${url} is unavailable in closed-network mode`,
+        };
       }
       const response = await safeExternalFetch(url, {}, fetchImpl);
       return {

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { Express, RequestHandler } from 'express';
+import type { DaemonStatusResponse } from '@open-design/contracts';
 import { readCurrentAppVersionInfo } from '../app-version.js';
 import { getCritiqueMetrics, register } from '../metrics/index.js';
 import { readConformanceHistory } from '../critique/conformance-history.js';
@@ -22,16 +23,23 @@ export interface RegisterDaemonRoutesDeps {
     enabled: boolean;
     roots?: unknown;
   };
+  /**
+   * Closed-network (intranet) mode, resolved once at daemon startup. Reported
+   * here — beside `sandboxMode` — because it is a process-level deployment
+   * fact, not a user preference. `od daemon status --json`, `od doctor`, and
+   * the web bootstrap all read it from this endpoint.
+   */
+  closedNetwork: boolean;
   env: NodeJS.ProcessEnv;
 }
 
 export function registerDaemonRoutes(app: Express, deps: RegisterDaemonRoutesDeps): void {
-  const { db, env, host, http, paths, sandboxRuntime } = deps;
+  const { closedNetwork, db, env, host, http, paths, sandboxRuntime } = deps;
   const { requireLocalDaemonRequest, sendApiError } = http;
 
   app.get('/api/daemon/status', async (_req, res) => {
     const versionInfo = await readCurrentAppVersionInfo();
-    res.json({
+    const payload: DaemonStatusResponse = {
       ok: true,
       version: versionInfo.version,
       bindHost: host,
@@ -42,6 +50,7 @@ export function registerDaemonRoutes(app: Express, deps: RegisterDaemonRoutesDep
       sandbox: sandboxRuntime.enabled
         ? { enabled: true, roots: sandboxRuntime.roots }
         : { enabled: false },
+      closedNetwork,
       pid: process.pid,
       shuttingDown: deps.getDaemonShuttingDown(),
       installedPlugins: (() => {
@@ -51,7 +60,8 @@ export function registerDaemonRoutes(app: Express, deps: RegisterDaemonRoutesDep
           return 0;
         }
       })(),
-    });
+    };
+    res.json(payload);
   });
 
   app.get('/api/daemon/db', async (_req, res) => {

@@ -13,6 +13,7 @@ export * from './api/chat.js';
 export * from './api/community.js';
 export * from './api/context.js';
 export * from './api/connectors.js';
+export * from './api/daemon-status.js';
 export * from './api/comments.js';
 export * from './api/collab.js';
 export * from './api/project-sync.js';

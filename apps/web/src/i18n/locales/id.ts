@@ -649,6 +649,8 @@ export const id: Dict = {
   'settings.appRuntime': 'Runtime',
   'settings.appPlatform': 'Platform',
   'settings.appArchitecture': 'Arsitektur',
+  'settings.appNetwork': 'Jaringan',
+  'settings.appNetworkClosed': 'Jaringan tertutup',
   'settings.runtimePackaged': 'Aplikasi paket',
   'settings.runtimeDevelopment': 'Pengembangan',
   'settings.versionUnavailable': 'Detail versi tidak tersedia saat daemon offline.',

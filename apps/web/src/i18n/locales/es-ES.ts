@@ -649,6 +649,8 @@ export const esES: Dict = {
   'settings.appRuntime': 'Ejecución',
   'settings.appPlatform': 'Plataforma',
   'settings.appArchitecture': 'Arquitectura',
+  'settings.appNetwork': 'Red',
+  'settings.appNetworkClosed': 'Red cerrada',
   'settings.runtimePackaged': 'App empaquetada',
   'settings.runtimeDevelopment': 'Desarrollo',
   'settings.versionUnavailable': 'Los detalles de versión no están disponibles mientras el daemon está offline.',

@@ -20,6 +20,12 @@ export interface WhatsNewServiceOptions {
   fetchImpl?: typeof fetch;
   now?: () => number;
   env?: NodeJS.ProcessEnv;
+  /**
+   * Closed-network mode. The card degrades to "no highlight" rather than an
+   * error: the home surface must never fail, and an intranet user has no way
+   * to reach the hosted document anyway. See closed-network.ts.
+   */
+  closedNetwork?: boolean;
 }
 
 export interface WhatsNewService {
@@ -49,7 +55,14 @@ const WHATS_NEW_TIMEOUT_MS = 4_000;
  * tools-serve endpoint) regardless of channel; otherwise the dedicated R2
  * object is used only on release channels.
  */
-export function whatsNewSourceUrl(env: NodeJS.ProcessEnv, channel: string): string | null {
+export function whatsNewSourceUrl(
+  env: NodeJS.ProcessEnv,
+  channel: string,
+  closedNetwork = false,
+): string | null {
+  // Closed-network wins over OD_WHATS_NEW_URL: an operator override must not be
+  // able to reintroduce an outbound request on a locked-down machine.
+  if (closedNetwork) return null;
   const override = env.OD_WHATS_NEW_URL?.trim();
   if (override) return override;
   return WHATS_NEW_RELEASE_CHANNELS.has(channel) ? DEFAULT_WHATS_NEW_URL : null;
@@ -122,15 +135,16 @@ export function createWhatsNewService({
   fetchImpl = fetch,
   now = () => Date.now(),
   env = process.env,
+  closedNetwork = false,
 }: WhatsNewServiceOptions = {}): WhatsNewService {
   let cache: { key: string; result: WhatsNewReadResult } | null = null;
   let inflight: Promise<WhatsNewReadResult> | null = null;
 
   async function readWhatsNew(channel: string): Promise<WhatsNewReadResult> {
-    const sourceUrl = whatsNewSourceUrl(env, channel);
+    const sourceUrl = whatsNewSourceUrl(env, channel, closedNetwork);
     if (sourceUrl == null) {
-      // Development/CI builds (no release channel, no override) never show the
-      // card and never reach out to the network.
+      // Development/CI builds (no release channel, no override) and
+      // closed-network installs never show the card and never reach out.
       return { id: null, content: null, fetchedAt: now(), stale: false };
     }
     const cacheKey = sourceUrl;

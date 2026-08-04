@@ -7,6 +7,8 @@ import type {
   ConnectorDetailResponse,
   ConnectorListResponse,
   ConnectorStatusResponse,
+  DaemonRuntimeFlags,
+  DaemonStatusResponse,
   FigmaImportResult,
   ImportGitHubDesignSystemRequest,
   ImportGitHubDesignSystemResponse,
@@ -1487,6 +1489,29 @@ export async function fetchAppVersionInfo(): Promise<AppVersionInfo | null> {
     return isAppVersionInfo(json.version) ? json.version : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Deployment switches the renderer needs before it decides what to render.
+ * Read from /api/daemon/status, which is the daemon's process-level status
+ * endpoint — deliberately not /api/app-config, so no client write can flip
+ * closed-network mode off.
+ *
+ * A failed or malformed response falls back to `closedNetwork: false`. The
+ * daemon is the enforcement layer; a UI that guesses "open" while the daemon
+ * refuses the request degrades to a visible-but-inert badge, whereas guessing
+ * "closed" would hide working features from every user whose daemon is briefly
+ * unreachable at boot.
+ */
+export async function fetchDaemonRuntimeFlags(): Promise<DaemonRuntimeFlags> {
+  try {
+    const resp = await fetch('/api/daemon/status');
+    if (!resp.ok) return { closedNetwork: false };
+    const json = (await resp.json()) as Partial<DaemonStatusResponse>;
+    return { closedNetwork: json.closedNetwork === true };
+  } catch {
+    return { closedNetwork: false };
   }
 }
 

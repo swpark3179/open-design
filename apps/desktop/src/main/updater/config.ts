@@ -10,6 +10,8 @@ import {
 } from "@open-design/sidecar-proto";
 import { releaseChannelFromVersion } from "@open-design/release";
 
+import { isClosedNetworkEnv } from "../closed-network.js";
+
 /**
  * @module updater-config
  *
@@ -164,7 +166,13 @@ export function resolveDesktopUpdaterConfig(input: DesktopUpdaterConfigInput): D
   const env = input.env ?? process.env;
   const mode = normalizeMode(env[DESKTOP_UPDATE_ENV.MODE], input.mode ?? DESKTOP_UPDATE_MODES.PACKAGE_LAUNCHER);
   const defaultEnabled = input.source === SIDECAR_SOURCES.PACKAGED;
-  const enabled = isTruthyEnv(env[DESKTOP_UPDATE_ENV.ENABLED]) ?? defaultEnabled;
+  // Closed-network mode outranks OD_UPDATE_ENABLED and OD_UPDATE_AUTO_CHECK: an
+  // intranet machine must not poll releases.open-design.ai, and an operator-set
+  // update env must not be able to switch that back on.
+  const closedNetwork = isClosedNetworkEnv(env);
+  const enabled = closedNetwork
+    ? false
+    : isTruthyEnv(env[DESKTOP_UPDATE_ENV.ENABLED]) ?? defaultEnabled;
   const runtimeBase = resolve(input.runtimeBase == null ? process.cwd() : input.runtimeBase);
   const downloadRoot = normalizeDownloadRoot(
     env[DESKTOP_UPDATE_ENV.DOWNLOAD_ROOT] ??
@@ -187,7 +195,9 @@ export function resolveDesktopUpdaterConfig(input: DesktopUpdaterConfigInput): D
 
   return {
     arch: env[DESKTOP_UPDATE_ENV.ARCH] ?? input.arch ?? process.arch,
-    autoCheck: isTruthyEnv(env[DESKTOP_UPDATE_ENV.AUTO_CHECK]) ?? enabled,
+    // AUTO_CHECK is resolved independently of `enabled`, so the poller needs
+    // its own closed-network veto rather than inheriting the one above.
+    autoCheck: closedNetwork ? false : isTruthyEnv(env[DESKTOP_UPDATE_ENV.AUTO_CHECK]) ?? enabled,
     autoDownload: isTruthyEnv(env[DESKTOP_UPDATE_ENV.AUTO_DOWNLOAD]) ?? true,
     autoOpen: isTruthyEnv(env[DESKTOP_UPDATE_ENV.AUTO_OPEN]) ?? false,
     checkBackoffInitialMs: positiveDurationEnv(

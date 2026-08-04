@@ -24,6 +24,7 @@ import {
 } from '../analytics/events';
 import { createSocialSharePayload } from '../providers/registry';
 import type { AppConfig } from '../types';
+import { useClosedNetwork } from '../features/closedNetwork';
 import { formatDiscordPresenceCount, useDiscordPresence } from './useDiscordPresence';
 import { Icon } from './Icon';
 import { SocialShareGrid } from './SocialShareGrid';
@@ -80,7 +81,12 @@ export function EntrySettingsMenu({
   const analytics = useAnalytics();
   const t = useT();
   const { locale, setLocale } = useI18n();
-  const discordPresence = useDiscordPresence();
+  // Closed-network installs keep only the parts of this popover that work
+  // without the internet: Language, Appearance, and the Settings row. Every
+  // other entry is an outbound link (Teams, Discord, X, Threads, YouTube,
+  // Instagram, LinkedIn, Xiaohongshu) or the social-share grid.
+  const closedNetwork = useClosedNetwork();
+  const discordPresence = useDiscordPresence({ enabled: !closedNetwork });
   const [open, setOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const [openDesignShare, setOpenDesignShare] = useState<SocialShareResponse | null>(null);
@@ -155,7 +161,7 @@ export function EntrySettingsMenu({
   }, [open, analytics.track, pageName]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || closedNetwork) return;
     let cancelled = false;
     setOpenDesignShare(null);
     void createSocialSharePayload(openDesignShareRequest)
@@ -168,7 +174,7 @@ export function EntrySettingsMenu({
     return () => {
       cancelled = true;
     };
-  }, [open, openDesignShareRequest]);
+  }, [open, openDesignShareRequest, closedNetwork]);
 
   return (
     <div className="entry-settings-menu" ref={wrapRef}>
@@ -275,6 +281,8 @@ export function EntrySettingsMenu({
             </div>
           </section>
 
+          {closedNetwork ? null : (
+          <>
           <section className="entry-settings-menu__section">
             <div className="entry-settings-menu__section-title">
               <Icon name="external-link" size={14} />
@@ -490,6 +498,8 @@ export function EntrySettingsMenu({
           </a>
 
           <div className="entry-settings-menu__divider" aria-hidden />
+          </>
+          )}
 
           <button
             type="button"

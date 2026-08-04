@@ -19,6 +19,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import type { TelemetryPrefs } from './app-config.js';
+import { isClosedNetworkEnabled } from './closed-network.js';
 import { normalizeOpenDesignTelemetryRelayUrl } from './integrations/telemetry-relay.js';
 import { readVelaControlApiContext } from './integrations/vela.js';
 import {
@@ -411,6 +412,10 @@ export function readLangfuseConfig(
 export function readTelemetrySinkConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): TelemetrySinkConfig | null {
+  // No sink at all on a closed network — this covers both the hosted relay
+  // (telemetry.open-design.ai) and direct Langfuse credentials, so every
+  // entry point in this module degrades to its existing no-op path.
+  if (isClosedNetworkEnabled(env)) return null;
   const relayUrl = env.OPEN_DESIGN_TELEMETRY_RELAY_URL?.trim();
   if (relayUrl) {
     return {
@@ -432,6 +437,7 @@ export function readTelemetrySinkConfig(
 }
 
 function isVelaTelemetryEnabled(env: NodeJS.ProcessEnv): boolean {
+  if (isClosedNetworkEnabled(env)) return false;
   const raw = env.OPEN_DESIGN_VELA_TELEMETRY?.trim().toLowerCase();
   return raw !== '0' && raw !== 'false' && raw !== 'off' && raw !== 'no';
 }

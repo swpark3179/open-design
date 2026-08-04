@@ -34,6 +34,8 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { release } from "node:os";
 
+import { isClosedNetworkEnvLoose } from "./closed-network.js";
+
 const DEFAULT_HOST = "https://us.i.posthog.com";
 // Real-machine e2e (local packaged build → delete better-sqlite3 → launch →
 // query PostHog) proved a 1.5s cap silently DROPPED the event: a cold DNS+TLS
@@ -348,6 +350,11 @@ export async function captureStartupFailure(
 ): Promise<void> {
   const key = args.posthogKey?.trim();
   if (!key) return; // fork builds / no key → no-op, zero network
+  // Closed-network installs take the same zero-network path even when the
+  // build baked in a key. `main()` resolves and republishes the flag before
+  // anything here can run, so reading process.env is enough. Losing the crash
+  // report is the accepted cost of the guarantee that nothing leaves the box.
+  if (isClosedNetworkEnvLoose(process.env)) return;
   const host = (args.posthogHost?.trim() || DEFAULT_HOST).replace(/\/+$/, "");
   const fetchImpl = deps.fetchImpl ?? fetch;
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;

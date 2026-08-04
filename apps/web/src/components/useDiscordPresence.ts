@@ -74,8 +74,20 @@ export function formatDiscordPresenceCount(count: number): string {
   return `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k`;
 }
 
-export function useDiscordPresence(): CachedPresence | null {
+export interface UseDiscordPresenceOptions {
+  /**
+   * Set false to skip the request entirely — callers that hide their Discord
+   * CTA in closed-network mode pass this so the hook never reaches the daemon
+   * for data nothing will render. Defaults to true.
+   */
+  enabled?: boolean;
+}
+
+export function useDiscordPresence(
+  { enabled = true }: UseDiscordPresenceOptions = {},
+): CachedPresence | null {
   const [presence, setPresence] = useState<CachedPresence | null>(() => {
+    if (!enabled) return null;
     if (memoryCache) return memoryCache;
     const persisted = readPersistedCache();
     if (persisted) memoryCache = persisted;
@@ -83,6 +95,10 @@ export function useDiscordPresence(): CachedPresence | null {
   });
 
   useEffect(() => {
+    if (!enabled) {
+      setPresence(null);
+      return;
+    }
     const now = Date.now();
     const cached = memoryCache ?? readPersistedCache();
     if (cached && now - cached.ts < CACHE_TTL_MS) {
@@ -118,7 +134,7 @@ export function useDiscordPresence(): CachedPresence | null {
     return () => {
       active = false;
     };
-  }, []);
+  }, [enabled]);
 
   return presence;
 }

@@ -40,6 +40,7 @@ import {
 } from '../analytics/events';
 import { LOCALE_LABEL, LOCALES, useI18n } from '../i18n';
 import type { Locale } from '../i18n';
+import { useClosedNetwork } from '../features/closedNetwork';
 import type { Dict } from '../i18n/types';
 import { AgentIcon } from './AgentIcon';
 import { AgentDiagnosticRow } from './AgentDiagnosticRow';
@@ -1531,6 +1532,9 @@ export function SettingsDialog({
     ? restorePendingByokProviderDraft(normalizedInitialConfig)
     : normalizedInitialConfig;
   const [cfg, setCfg] = useState<AppConfig>(() => initialFormConfig);
+  // Reported read-only in About. Not part of `cfg`: closed-network mode is an
+  // administrator decision the daemon resolves, never a saved preference.
+  const closedNetwork = useClosedNetwork();
   const [maxTokensInput, setMaxTokensInput] = useState(
     initialFormConfig.maxTokens == null ? '' : String(initialFormConfig.maxTokens),
   );
@@ -6015,6 +6019,15 @@ export function SettingsDialog({
                     <dt>{t('settings.appArchitecture')}</dt>
                     <dd>{appVersionInfo.arch}</dd>
                   </div>
+                  {/* Read-only by design: closed-network mode is an
+                      administrator decision (marker file / env / launch flag),
+                      so About reports it and offers no toggle. */}
+                  {closedNetwork ? (
+                    <div>
+                      <dt>{t('settings.appNetwork')}</dt>
+                      <dd>{t('settings.appNetworkClosed')}</dd>
+                    </div>
+                  ) : null}
                 </dl>
               ) : (
                 <div className="empty-card">{t('settings.versionUnavailable')}</div>

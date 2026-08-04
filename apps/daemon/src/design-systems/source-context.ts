@@ -1,3 +1,4 @@
+import { isClosedNetworkEnabled } from '../closed-network.js';
 import type { UserDesignSystemInput } from './index.js';
 
 export type DesignSystemSourceContext = {
@@ -52,6 +53,11 @@ export async function collectDesignSystemSourceContext(
   input: UserDesignSystemInput,
   options: SourceContextOptions = {},
 ): Promise<DesignSystemSourceContext> {
+  // Enriching a design system with GitHub repo metadata is optional colour on
+  // top of what the user already supplied. On a closed network it can only
+  // stall for the full timeout per repo, so skip it entirely and keep the
+  // import working with the provenance the user gave us.
+  if (isClosedNetworkEnabled()) return { github: [], notes: '' };
   const githubUrls = input.provenance?.githubUrls ?? [];
   const repos = uniqueRepositories(githubUrls).slice(0, options.maxRepos ?? DEFAULT_MAX_REPOS);
   if (repos.length === 0) return { github: [], notes: '' };

@@ -38,6 +38,7 @@ import {
 } from "@open-design/sidecar";
 import { readProcessStamp } from "@open-design/platform";
 
+import { isClosedNetworkEnv } from "./closed-network.js";
 import { createDesktopRuntime, type DesktopRuntime } from "./runtime.js";
 import { dispatchInviteDeeplink, registerInviteDeeplink } from "./invite-deeplink.js";
 import { focusDesktopForDeeplink } from "./deeplink-focus.js";
@@ -554,33 +555,40 @@ function installDesktopMenu(
       {
         label: "Help",
         role: "help",
+        // Every entry above the last separator opens github.com / x.com /
+        // discord.gg in the system browser. On a closed network they are dead
+        // links, so the submenu collapses to the one item that works offline.
         submenu: [
-          {
-            label: "Documentation",
-            click() {
-              void shell.openExternal("https://github.com/nexu-io/open-design#readme");
-            },
-          },
-          { type: "separator" },
-          {
-            label: "Contact Us",
-            click() {
-              void shell.openExternal("https://x.com/OpenDesignHQ");
-            },
-          },
-          {
-            label: "Report Issue",
-            click() {
-              void shell.openExternal("https://github.com/nexu-io/open-design/issues/new");
-            },
-          },
-          {
-            label: "Join Discord",
-            click() {
-              void shell.openExternal("https://discord.gg/mHAjSMV6gz");
-            },
-          },
-          { type: "separator" },
+          ...(isClosedNetworkEnv(process.env)
+            ? []
+            : [
+                {
+                  label: "Documentation",
+                  click() {
+                    void shell.openExternal("https://github.com/nexu-io/open-design#readme");
+                  },
+                },
+                { type: "separator" as const },
+                {
+                  label: "Contact Us",
+                  click() {
+                    void shell.openExternal("https://x.com/OpenDesignHQ");
+                  },
+                },
+                {
+                  label: "Report Issue",
+                  click() {
+                    void shell.openExternal("https://github.com/nexu-io/open-design/issues/new");
+                  },
+                },
+                {
+                  label: "Join Discord",
+                  click() {
+                    void shell.openExternal("https://discord.gg/mHAjSMV6gz");
+                  },
+                },
+                { type: "separator" as const },
+              ]),
           { label: "Export Diagnostics…", click: exportDiagnostics },
         ],
       },

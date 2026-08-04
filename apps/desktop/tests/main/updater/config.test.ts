@@ -87,4 +87,83 @@ describe("desktop updater config", () => {
       rmSync(root, { force: true, recursive: true });
     }
   });
+
+  describe("closed-network mode", () => {
+    // The poller is the one thing that reaches releases.open-design.ai on a
+    // schedule with no user action, so it has to be off before the first
+    // 5s-after-launch check fires. OD_UPDATE_ENABLED and OD_UPDATE_AUTO_CHECK
+    // resolve independently, so both need the veto.
+    it("forces the updater off even when the update env explicitly enables it", () => {
+      const root = makeRoot();
+      try {
+        const config = resolveDesktopUpdaterConfig({
+          currentVersion: "1.2.3",
+          downloadRoot: root,
+          env: {
+            OD_CLOSED_NETWORK: "1",
+            [DESKTOP_UPDATE_ENV.ENABLED]: "1",
+            [DESKTOP_UPDATE_ENV.AUTO_CHECK]: "1",
+          },
+          source: SIDECAR_SOURCES.PACKAGED,
+        });
+
+        expect(config.enabled).toBe(false);
+        expect(config.autoCheck).toBe(false);
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    it("accepts the same spellings the daemon does", () => {
+      const root = makeRoot();
+      try {
+        for (const value of ["1", "true", "YES", " on "]) {
+          const config = resolveDesktopUpdaterConfig({
+            currentVersion: "1.2.3",
+            downloadRoot: root,
+            env: { OD_CLOSED_NETWORK: value },
+            source: SIDECAR_SOURCES.PACKAGED,
+          });
+          expect(config.enabled, `OD_CLOSED_NETWORK=${value}`).toBe(false);
+        }
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    // Lenient on purpose: a typo must not take down the desktop shell. The
+    // daemon reports the bad value with a hard error of its own.
+    it("degrades an unrecognised value to off instead of throwing", () => {
+      const root = makeRoot();
+      try {
+        const config = resolveDesktopUpdaterConfig({
+          currentVersion: "1.2.3",
+          downloadRoot: root,
+          env: { OD_CLOSED_NETWORK: "nonsense" },
+          source: SIDECAR_SOURCES.PACKAGED,
+        });
+
+        expect(config.enabled).toBe(true);
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    it("leaves the packaged default intact when the mode is off", () => {
+      const root = makeRoot();
+      try {
+        const config = resolveDesktopUpdaterConfig({
+          currentVersion: "1.2.3",
+          downloadRoot: root,
+          env: { OD_CLOSED_NETWORK: "0" },
+          source: SIDECAR_SOURCES.PACKAGED,
+        });
+
+        expect(config.enabled).toBe(true);
+        expect(config.autoCheck).toBe(true);
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+  });
 });

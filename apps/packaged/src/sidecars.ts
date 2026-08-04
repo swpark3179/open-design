@@ -45,6 +45,12 @@ const require = createRequire(import.meta.url);
 const PACKAGED_CHILD_ENV_ALLOWLIST = [
   "CODEX_HOME",
   "HOME",
+  // Closed-network mode. `main()` in index.ts resolves the marker file / env /
+  // --closed-network flag first and republishes the answer onto its own
+  // process.env, so what forwards here is a resolved decision rather than raw
+  // user input. The daemon child re-resolves from it (and from the marker file
+  // directly), keeping one truth source per process. See closed-network.ts.
+  "OD_CLOSED_NETWORK",
   "HTTP_PROXY",
   "HTTPS_PROXY",
   "LANG",

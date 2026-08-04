@@ -6,6 +6,7 @@ import {
 } from '@open-design/contracts';
 import type { AnalyticsService } from '../analytics.js';
 import type { AppConfigPrefs } from '../app-config.js';
+import { isClosedNetworkEnabled } from '../closed-network.js';
 import {
   readInstallationFile,
   resolveInstallationDir,
@@ -14,6 +15,17 @@ import {
 } from '../installation.js';
 
 const DEFAULT_ATTRIBUTION_LEDGER_URL = 'https://download.open-design.ai/api/attribution';
+
+/**
+ * Install-attribution ledger origin, or null when this daemon must not reach
+ * it. Both outbound attribution paths (`consume` and `bridge/mint`) go through
+ * here so closed-network mode cannot be bypassed by only patching one of them;
+ * both already treat a null base URL as "skip silently".
+ */
+function attributionLedgerBaseUrl(env: NodeJS.ProcessEnv): string | null {
+  if (isClosedNetworkEnabled(env)) return null;
+  return env.OD_ATTRIBUTION_LEDGER_URL?.trim() || DEFAULT_ATTRIBUTION_LEDGER_URL;
+}
 
 type ReadAppConfig = (dataDir: string) => Promise<AppConfigPrefs>;
 
@@ -92,7 +104,8 @@ export function createAttributionService(deps: Omit<RegisterAttributionRoutesDep
       const installation = await readInstallationFile(installationDir);
       const installationId = cleanString(appConfig.installationId) ?? cleanString(installation.installationId);
       if (appConfig.telemetry?.metrics !== true || !installationId) return null;
-      const baseUrl = env.OD_ATTRIBUTION_LEDGER_URL?.trim() || DEFAULT_ATTRIBUTION_LEDGER_URL;
+      const baseUrl = attributionLedgerBaseUrl(env);
+      if (!baseUrl) return null;
       const secret = env.OD_ATTRIBUTION_LEDGER_TOKEN?.trim();
       if (!secret) return null;
       try {
@@ -271,7 +284,7 @@ async function consumeLedgerToken(input: {
   installationId: string;
   token: string;
 }): Promise<LedgerConsumeResult | null> {
-  const baseUrl = input.env.OD_ATTRIBUTION_LEDGER_URL?.trim() || DEFAULT_ATTRIBUTION_LEDGER_URL;
+  const baseUrl = attributionLedgerBaseUrl(input.env);
   if (!baseUrl) return null;
   const secret = input.env.OD_ATTRIBUTION_LEDGER_TOKEN?.trim();
   const url = `${baseUrl.replace(/\/+$/, '')}/consume`;

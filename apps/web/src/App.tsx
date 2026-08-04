@@ -75,6 +75,7 @@ import {
   daemonIsLive,
   fetchAppVersionInfo,
   fetchAgentsStream,
+  fetchDaemonRuntimeFlags,
   fetchDesignSystems,
   fetchDesignTemplates,
   invalidateProjectFilesCache,
@@ -85,6 +86,7 @@ import {
   replaceProjectWorkingDir,
 } from './providers/registry';
 import { openFirstPartyExternalLinkFromClick } from './first-party-external-link';
+import { setClosedNetwork } from './features/closedNetwork';
 import {
   RUNS_CHANGED_EVENT,
   fetchAmrModels,
@@ -2058,6 +2060,16 @@ function AppInner() {
         if (cancelled) return;
         setPromptTemplates(list);
         setPromptTemplatesLoading(false);
+      });
+
+      // Deployment switches, resolved before the entry shell decides which
+      // chrome to render. Kept out of the config Promise.all below so the
+      // SNS/share surfaces settle as early as possible rather than waiting on
+      // the slowest of three config reads. Not cancel-guarded: this is a
+      // module store, not component state, and a late resolution is still the
+      // correct answer for whatever mounts next.
+      void fetchDaemonRuntimeFlags().then((flags) => {
+        setClosedNetwork(flags.closedNetwork);
       });
 
       void fetchAppVersionInfo().then((info) => {

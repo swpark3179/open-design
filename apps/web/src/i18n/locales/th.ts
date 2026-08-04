@@ -649,6 +649,8 @@ export const th: Dict = {
   'settings.appRuntime': 'รันไทม์',
   'settings.appPlatform': 'แพลตฟอร์ม',
   'settings.appArchitecture': 'สถาปัตยกรรม',
+  'settings.appNetwork': 'เครือข่าย',
+  'settings.appNetworkClosed': 'เครือข่ายปิด',
   'settings.runtimePackaged': 'แอปที่แพ็กเกจแล้ว',
   'settings.runtimeDevelopment': 'การพัฒนา',
   'settings.versionUnavailable': 'ข้อมูลเวอร์ชันไม่พร้อมใช้งานขณะที่ daemon ออฟไลน์',

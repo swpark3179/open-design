@@ -649,6 +649,8 @@ export const fa: Dict = {
   'settings.appRuntime': 'محیط اجرا',
   'settings.appPlatform': 'سکو',
   'settings.appArchitecture': 'معماری',
+  'settings.appNetwork': 'شبکه',
+  'settings.appNetworkClosed': 'شبکه بسته',
   'settings.runtimePackaged': 'برنامه بسته‌بندی‌شده',
   'settings.runtimeDevelopment': 'توسعه',
   'settings.versionUnavailable': 'تا وقتی daemon آفلاین است جزئیات نسخه در دسترس نیست.',

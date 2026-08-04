@@ -663,6 +663,8 @@ export const zhTW: Dict = {
   "settings.appRuntime": "執行環境",
   "settings.appPlatform": "平台",
   "settings.appArchitecture": "架構",
+  "settings.appNetwork": "網路",
+  "settings.appNetworkClosed": "內網模式",
   "settings.runtimePackaged": "已封裝應用程式",
   "settings.runtimeDevelopment": "開發環境",
   "settings.versionUnavailable": "守護程式離線時無法取得版本詳情。",

@@ -21,6 +21,7 @@ import {
 } from '../analytics/events';
 import { Icon } from './Icon';
 import { useT } from '../i18n';
+import { useClosedNetwork } from '../features/closedNetwork';
 
 const REPO = 'https://github.com/nexu-io/open-design';
 const ISSUES_URL = `${REPO}/issues/new`;
@@ -35,6 +36,11 @@ const ext = { target: '_blank', rel: 'noreferrer noopener' } as const;
 export function EntryHelpMenu() {
   const t = useT();
   const analytics = useAnalytics();
+  // Every item in this popover opens github.com, x.com, or discord.gg, so on a
+  // closed network there is nothing left to show and the trigger goes too. The
+  // check lives here rather than at the mount site so any future placement
+  // inherits it. Hooks above stay unconditional; the early return is below.
+  const closedNetwork = useClosedNetwork();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -65,6 +71,8 @@ export function EntryHelpMenu() {
       area: 'help_resources_popover',
     });
   }, [open, analytics.track]);
+
+  if (closedNetwork) return null;
 
   return (
     <div className="entry-help-menu" ref={wrapRef}>

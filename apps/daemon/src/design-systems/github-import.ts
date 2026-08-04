@@ -3,6 +3,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
+import { isClosedNetworkEnabled } from '../closed-network.js';
 import { containsSymlink } from '../library-install.js';
 import {
   LocalDesignSystemImportError,
@@ -95,6 +96,15 @@ export async function importGitHubDesignSystemProject(
 }
 
 export function parseGitHubRepoUrl(input: string): ParsedGitHubRepoUrl {
+  // Refuse at parse time rather than letting `git clone` hang on a DNS lookup
+  // that a closed network will never answer. Every caller of this module goes
+  // through here, so this is the module's one egress gate.
+  if (isClosedNetworkEnabled()) {
+    throw new LocalDesignSystemImportError(
+      'BAD_REQUEST',
+      'importing from github.com is unavailable in closed-network mode',
+    );
+  }
   let url: URL;
   try {
     url = new URL(input);

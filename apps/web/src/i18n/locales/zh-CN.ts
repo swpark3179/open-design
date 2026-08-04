@@ -662,6 +662,8 @@ export const zhCN: Dict = {
   "settings.appRuntime": "运行时",
   "settings.appPlatform": "平台",
   "settings.appArchitecture": "架构",
+  "settings.appNetwork": "网络",
+  "settings.appNetworkClosed": "内网模式",
   "settings.runtimePackaged": "已打包应用",
   "settings.runtimeDevelopment": "开发环境",
   "settings.versionUnavailable": "守护进程离线时无法获取版本详情。",

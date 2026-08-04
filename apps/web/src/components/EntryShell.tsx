@@ -205,6 +205,7 @@ import { closeAmrActivationWindowBestEffort } from './AmrLoginPill';
 import { smoothScrollToTop } from '../utils/smoothScrollToTop';
 import { summarizeProjectNameFromPrompt } from '../utils/projectName';
 import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
+import { useClosedNetwork } from '../features/closedNetwork';
 import {
   providerModelsCacheKey,
   type ProviderModelsCache,
@@ -570,6 +571,10 @@ export function EntryShell({
   artifactUpgradeSlot,
 }: Props) {
   const t = useT();
+  // Closed-network installs drop the outbound chrome the entry shell still
+  // owns after #5517 removed the topbar: the What's New feed popup. See
+  // features/closedNetwork.ts.
+  const closedNetwork = useClosedNetwork();
   // Each entry sub-view (home / projects / design-systems) is its own
   // URL now, so the browser back/forward buttons work and a deep link
   // to /design-systems lands on that section. We derive the active
@@ -1465,7 +1470,7 @@ export function EntryShell({
               the workspace tabs bar (entryRailBridge), the updater popup host
               lives in the rail footer, and everything below is fixed-position
               or portalled so it occupies no layout space here. */}
-          <WhatsNewPopup active={view === 'home'} />
+          <WhatsNewPopup active={view === 'home' && !closedNetwork} />
           {amrBalanceGateBlock ? (
             <AmrBalanceDialog
               reason={amrBalanceGateBlock.reason}

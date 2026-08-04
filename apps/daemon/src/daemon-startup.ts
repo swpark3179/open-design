@@ -1,6 +1,9 @@
 import type { Server } from 'node:http';
 
+import { CLOSED_NETWORK_ENV } from './closed-network.js';
 import type { StartServerOptions } from './server.js';
+
+export const CLOSED_NETWORK_FLAG = '--closed-network';
 
 type StartedServer = {
   server: Server;
@@ -18,6 +21,12 @@ type DaemonRuntimeOptions = Omit<StartServerOptions, 'returnServer'> & {
 };
 
 export type DaemonCliStartupConfig = {
+  /**
+   * Closed-network (intranet) mode requested on the command line. The flag can
+   * only turn the mode ON; the marker file and `OD_CLOSED_NETWORK` are resolved
+   * by the daemon itself. See apps/daemon/src/closed-network.ts.
+   */
+  closedNetwork: boolean;
   host: string;
   open: boolean;
   port: number;
@@ -49,6 +58,7 @@ export function parseDaemonCliStartupArgs(
   let port = Number(env.OD_PORT) || 7456;
   let host = normalizeDaemonBindHost(env.OD_BIND_HOST);
   let open = true;
+  let closedNetwork = false;
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -67,6 +77,8 @@ export function parseDaemonCliStartupArgs(
       host = normalizeDaemonBindHost(next);
     } else if (a === '--no-open') {
       open = false;
+    } else if (a === CLOSED_NETWORK_FLAG) {
+      closedNetwork = true;
     } else if (a === '-h' || a === '--help') {
       return { ok: false, kind: 'help' };
     } else if (a.startsWith('-')) {
@@ -76,7 +88,7 @@ export function parseDaemonCliStartupArgs(
     }
   }
 
-  return { ok: true, config: { host, open, port } };
+  return { ok: true, config: { closedNetwork, host, open, port } };
 }
 
 export async function closeHttpServer(
@@ -159,7 +171,12 @@ export async function runDaemonCliStartup(argv: string[], options: { printHelp?:
     options.printHelp?.();
     return;
   }
-  const { host, open, port } = parsed.config;
+  const { closedNetwork, host, open, port } = parsed.config;
+  // Publish the flag into the environment before startDaemonRuntime lazily
+  // imports ./server.js, which resolves closed-network mode exactly once at
+  // module load. Doing it here keeps a single resolution point instead of
+  // threading a second source of truth through startServer options.
+  if (closedNetwork) process.env[CLOSED_NETWORK_ENV] = '1';
 
   const runtime = await startDaemonRuntime({
     host,

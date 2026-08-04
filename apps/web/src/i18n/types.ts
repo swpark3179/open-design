@@ -627,6 +627,9 @@ export interface Dict {
   'settings.appRuntime': string;
   'settings.appPlatform': string;
   'settings.appArchitecture': string;
+  // About → read-only indicator shown only when closed-network mode is on.
+  'settings.appNetwork': string;
+  'settings.appNetworkClosed': string;
   'settings.runtimePackaged': string;
   'settings.runtimeDevelopment': string;
   'settings.versionUnavailable': string;

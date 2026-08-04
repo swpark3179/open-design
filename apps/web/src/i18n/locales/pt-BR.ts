@@ -649,6 +649,8 @@ export const ptBR: Dict = {
   'settings.appRuntime': 'Runtime',
   'settings.appPlatform': 'Plataforma',
   'settings.appArchitecture': 'Arquitetura',
+  'settings.appNetwork': 'Rede',
+  'settings.appNetworkClosed': 'Rede fechada',
   'settings.runtimePackaged': 'App empacotado',
   'settings.runtimeDevelopment': 'Desenvolvimento',
   'settings.versionUnavailable': 'Os detalhes de versão ficam indisponíveis enquanto o daemon está offline.',

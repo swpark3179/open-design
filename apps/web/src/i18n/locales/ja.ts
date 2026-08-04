@@ -649,6 +649,8 @@ export const ja: Dict = {
   'settings.appRuntime': '実行環境',
   'settings.appPlatform': 'プラットフォーム',
   'settings.appArchitecture': 'アーキテクチャ',
+  'settings.appNetwork': 'ネットワーク',
+  'settings.appNetworkClosed': 'クローズドネットワーク',
   'settings.runtimePackaged': 'パッケージ版アプリ',
   'settings.runtimeDevelopment': '開発環境',
   'settings.versionUnavailable': 'daemon がオフラインの間はバージョン詳細を取得できません。',

@@ -649,6 +649,8 @@ export const ar: Dict = {
   'settings.appRuntime': 'وقت التشغيل',
   'settings.appPlatform': 'المنصة',
   'settings.appArchitecture': 'المعمارية',
+  'settings.appNetwork': 'الشبكة',
+  'settings.appNetworkClosed': 'شبكة مغلقة',
   'settings.runtimePackaged': 'تطبيق معبأ',
   'settings.runtimeDevelopment': 'تطوير',
   'settings.versionUnavailable': 'تفاصيل النسخة غير متوفرة بينما البرنامج الخفي غير متصل.',

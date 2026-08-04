@@ -649,6 +649,8 @@ export const tr: Dict = {
   'settings.appRuntime': 'Çalışma zamanı',
   'settings.appPlatform': 'Platform',
   'settings.appArchitecture': 'Mimari',
+  'settings.appNetwork': 'Ağ',
+  'settings.appNetworkClosed': 'Kapalı ağ',
   'settings.runtimePackaged': 'Paketlenmiş uygulama',
   'settings.runtimeDevelopment': 'Geliştirme',
   'settings.versionUnavailable': 'Arka plan servisi devre dışıyken sürüm detayları mevcut değildir.',

@@ -649,6 +649,8 @@ export const ko: Dict = {
   'settings.appRuntime': '런타임',
   'settings.appPlatform': '플랫폼',
   'settings.appArchitecture': '아키텍처',
+  'settings.appNetwork': '네트워크',
+  'settings.appNetworkClosed': '폐쇄망',
   'settings.runtimePackaged': '패키징된 앱',
   'settings.runtimeDevelopment': '개발 (Development)',
   'settings.versionUnavailable': '데몬이 오프라인 상태일 때는 버전 세부 정보를 확인할 수 없습니다.',

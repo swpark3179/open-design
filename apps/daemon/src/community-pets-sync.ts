@@ -10,6 +10,7 @@
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { ClosedNetworkError, isClosedNetworkEnabled } from './closed-network.js';
 import { resolveCodexPetsRoot } from './codex-pets.js';
 
 const PETSHARE_BASE = 'https://ihzwckyzfcuktrljwpha.supabase.co/functions/v1/petshare';
@@ -241,6 +242,12 @@ async function runPool<T, R>(
 }
 
 export async function syncCommunityPets(options: SyncOptions = {}): Promise<SyncResult> {
+  // Every catalog this reaches is on the public internet. Fail fast so the
+  // Pet settings surface shows a reason instead of spinning through per-pet
+  // download timeouts.
+  if (isClosedNetworkEnabled()) {
+    throw new ClosedNetworkError('Community pet sync');
+  }
   const sourceArg = options.source ?? 'all';
   const sources = new Set<'petshare' | 'hatchery'>();
   if (sourceArg === 'all' || sourceArg === 'petshare') sources.add('petshare');

@@ -649,6 +649,8 @@ export const it: Dict = {
   'settings.appRuntime': 'Ambiente',
   'settings.appPlatform': 'Piattaforma',
   'settings.appArchitecture': 'Architettura',
+  'settings.appNetwork': 'Rete',
+  'settings.appNetworkClosed': 'Rete chiusa',
   'settings.runtimePackaged': 'Applicazione impacchettata',
   'settings.runtimeDevelopment': 'Sviluppo',
   'settings.versionUnavailable': 'Le informazioni sulla versione non sono disponibili quando il daemon è offline.',
