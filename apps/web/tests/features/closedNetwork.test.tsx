@@ -51,10 +51,47 @@ describe('closed-network store', () => {
   it('seeds from localStorage so the first frame is already correct', async () => {
     const first = await loadStore();
     first.setClosedNetwork(true);
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe('1');
+    expect(window.localStorage.getItem(STORAGE_KEY)).not.toBeNull();
 
     const reloaded = await loadStore();
     expect(reloaded.isClosedNetwork()).toBe(true);
+  });
+
+  // Installs from before the hint carried an expiry wrote a bare '1'. Honour it
+  // so an already-locked-down machine is not stranded by the format change.
+  it('honours the legacy unstamped seed', async () => {
+    window.localStorage.setItem(STORAGE_KEY, '1');
+    const { isClosedNetwork } = await loadStore();
+    expect(isClosedNetwork()).toBe(true);
+  });
+
+  // The hint is an optimisation, never a second source of truth. If the status
+  // endpoint is never reachable, an unbounded hint would hide features forever
+  // with nothing left to correct it; expiry caps that at one frame.
+  it('ignores a hint older than its TTL', async () => {
+    const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: true, ts: twoDaysAgo }));
+    const { isClosedNetwork } = await loadStore();
+    expect(isClosedNetwork()).toBe(false);
+  });
+
+  it('ignores a malformed hint', async () => {
+    window.localStorage.setItem(STORAGE_KEY, '{not json');
+    const { isClosedNetwork } = await loadStore();
+    expect(isClosedNetwork()).toBe(false);
+  });
+
+  // A re-assertion from the daemon must push the expiry out, or a long-running
+  // session would let a still-correct hint lapse.
+  it('refreshes the expiry each time the daemon re-asserts the mode', async () => {
+    const nearlyStale = Date.now() - 23 * 60 * 60 * 1000;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: true, ts: nearlyStale }));
+
+    const store = await loadStore();
+    store.setClosedNetwork(true);
+
+    const stamped = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}') as { ts: number };
+    expect(stamped.ts).toBeGreaterThan(nearlyStale);
   });
 
   it('clears the seed when the daemon reports the mode is off', async () => {
@@ -100,19 +137,31 @@ describe('fetchDaemonRuntimeFlags', () => {
     await expect(fetchDaemonRuntimeFlags()).resolves.toEqual({ closedNetwork: true });
   });
 
-  // Guessing "closed" on a transient boot failure would hide working features
-  // from every user whose daemon is briefly unreachable; the daemon is the
-  // enforcement layer, so the UI errs toward showing things.
-  it('falls back to open when the daemon is unreachable or the body is junk', async () => {
+  it('reports an explicit off answer', async () => {
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true, closedNetwork: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ) as typeof fetch;
+
+    const { fetchDaemonRuntimeFlags } = await import('../../src/providers/registry');
+    await expect(fetchDaemonRuntimeFlags()).resolves.toEqual({ closedNetwork: false });
+  });
+
+  // "The daemon did not answer" must stay distinguishable from "the daemon said
+  // off". Collapsing the two lets a transient failure clear a legitimate hint
+  // and flash the SNS chrome onto a locked-down machine.
+  it('returns null when the daemon is unreachable or the body is junk', async () => {
     const { fetchDaemonRuntimeFlags } = await import('../../src/providers/registry');
 
     globalThis.fetch = vi.fn(async () => {
       throw new Error('ECONNREFUSED');
     }) as typeof fetch;
-    await expect(fetchDaemonRuntimeFlags()).resolves.toEqual({ closedNetwork: false });
+    await expect(fetchDaemonRuntimeFlags()).resolves.toBeNull();
 
     globalThis.fetch = vi.fn(async () => new Response('nope', { status: 500 })) as typeof fetch;
-    await expect(fetchDaemonRuntimeFlags()).resolves.toEqual({ closedNetwork: false });
+    await expect(fetchDaemonRuntimeFlags()).resolves.toBeNull();
 
     globalThis.fetch = vi.fn(async () =>
       new Response(JSON.stringify({ ok: true }), {
@@ -120,6 +169,6 @@ describe('fetchDaemonRuntimeFlags', () => {
         headers: { 'Content-Type': 'application/json' },
       }),
     ) as typeof fetch;
-    await expect(fetchDaemonRuntimeFlags()).resolves.toEqual({ closedNetwork: false });
+    await expect(fetchDaemonRuntimeFlags()).resolves.toBeNull();
   });
 });

@@ -1498,20 +1498,22 @@ export async function fetchAppVersionInfo(): Promise<AppVersionInfo | null> {
  * endpoint — deliberately not /api/app-config, so no client write can flip
  * closed-network mode off.
  *
- * A failed or malformed response falls back to `closedNetwork: false`. The
- * daemon is the enforcement layer; a UI that guesses "open" while the daemon
- * refuses the request degrades to a visible-but-inert badge, whereas guessing
- * "closed" would hide working features from every user whose daemon is briefly
- * unreachable at boot.
+ * Returns `null` when the daemon did not answer — a throw, a non-ok status, or
+ * a body carrying no boolean `closedNetwork`. That is deliberately distinct
+ * from `{ closedNetwork: false }`, which means the daemon answered and the mode
+ * is off. Callers must not collapse the two: the renderer keeps a cached hint
+ * for the first frame, and overwriting it with a guessed "open" would flash the
+ * SNS chrome back on for a machine that is genuinely locked down.
  */
-export async function fetchDaemonRuntimeFlags(): Promise<DaemonRuntimeFlags> {
+export async function fetchDaemonRuntimeFlags(): Promise<DaemonRuntimeFlags | null> {
   try {
     const resp = await fetch('/api/daemon/status');
-    if (!resp.ok) return { closedNetwork: false };
+    if (!resp.ok) return null;
     const json = (await resp.json()) as Partial<DaemonStatusResponse>;
-    return { closedNetwork: json.closedNetwork === true };
+    if (typeof json.closedNetwork !== 'boolean') return null;
+    return { closedNetwork: json.closedNetwork };
   } catch {
-    return { closedNetwork: false };
+    return null;
   }
 }
 

@@ -3,8 +3,10 @@
 // Sibling of `libraryUi.ts`, which is this repo's home for "should this surface
 // exist at all" flags — except this one is resolved at runtime rather than at
 // build time. The daemon owns the answer (marker file / OD_CLOSED_NETWORK /
-// --closed-network) and reports it on GET /api/daemon/status; `App.tsx` calls
-// `setClosedNetwork` once during bootstrap.
+// --closed-network) and reports it on GET /api/daemon/status; `App.tsx`
+// re-asserts it through `setClosedNetwork` on every boot and again whenever the
+// daemon's liveness changes, so a daemon that binds after the web server still
+// gets to correct the cached hint below.
 //
 // Two consumers, so this is a module store rather than a React context:
 // components read it through `useClosedNetwork()`, and plain modules that have
@@ -21,13 +23,32 @@ import { useSyncExternalStore } from 'react';
 
 const STORAGE_KEY = 'open-design:closed-network';
 
+/**
+ * How long a cached hint may speak for the daemon.
+ *
+ * The hint exists only to avoid one frame of SNS chrome on a machine that is
+ * already locked down, so an expired hint costs a single frame. An unbounded
+ * one costs far more: if the status endpoint is never reachable, a `true`
+ * written months ago would keep hiding features with nothing left to correct
+ * it. Expiry keeps this an optimisation instead of a second source of truth.
+ */
+const SEED_TTL_MS = 24 * 60 * 60 * 1000;
+
 function readSeed(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === '1';
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw == null) return false;
+    // Pre-TTL installs wrote a bare '1'. Honour it once so an existing
+    // closed-network machine is not stranded by the format change; the
+    // bootstrap fetch rewrites it in the stamped form.
+    if (raw === '1') return true;
+    const parsed = JSON.parse(raw) as { v?: unknown; ts?: unknown };
+    if (parsed?.v !== true || typeof parsed.ts !== 'number') return false;
+    return Date.now() - parsed.ts < SEED_TTL_MS;
   } catch {
-    // Private-mode / blocked storage: fall back to "not closed", which the
-    // bootstrap fetch corrects a moment later.
+    // Private-mode / blocked storage, or a malformed value: fall back to "not
+    // closed", which the bootstrap fetch corrects a moment later.
     return false;
   }
 }
@@ -38,7 +59,7 @@ const listeners = new Set<() => void>();
 function writeSeed(value: boolean): void {
   if (typeof window === 'undefined') return;
   try {
-    if (value) window.localStorage.setItem(STORAGE_KEY, '1');
+    if (value) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: true, ts: Date.now() }));
     else window.localStorage.removeItem(STORAGE_KEY);
   } catch {
     // Quota/permission errors only cost us the first-frame optimisation.
@@ -46,8 +67,12 @@ function writeSeed(value: boolean): void {
 }
 
 /**
- * Apply the daemon's answer. Called once from the bootstrap fetch; safe to call
- * again (a repeat with the same value notifies nobody).
+ * Apply the daemon's answer, refreshing the cached hint's expiry. Called
+ * whenever the daemon reports its status; safe to call again (a repeat with the
+ * same value notifies nobody).
+ *
+ * Only call this with an answer the daemon actually gave. Passing `false`
+ * because a fetch failed would clear a legitimate hint.
  */
 export function setClosedNetwork(value: boolean): void {
   writeSeed(value);

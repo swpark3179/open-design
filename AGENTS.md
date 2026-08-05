@@ -108,6 +108,15 @@ When adding a surface that reaches the network or links off-box, gate it: the
 daemon side on the resolved `RUNTIME_CLOSED_NETWORK`, the web side on
 `useClosedNetwork()` / `isClosedNetwork()` from `apps/web/src/features/closedNetwork.ts`.
 
+The web store is a cache, not a source of truth. It paints the first frame from
+an expiring localStorage hint and is re-asserted from `GET /api/daemon/status` on
+every boot and on every `daemonLive` change. Keep that fetch out of any
+`daemonIsLive()`-gated effect: the daemon routinely binds after the web server,
+and a correction that never re-runs turns the hint into the permanent answer —
+which is how the mode once became impossible to switch back off. `setClosedNetwork`
+takes only answers the daemon actually gave; `fetchDaemonRuntimeFlags` returns
+`null` for "no answer" precisely so a failed probe cannot be mistaken for "off".
+
 ## Daemon data directory contract
 
 This section is the only repository-wide source of truth for daemon-managed

@@ -40,15 +40,16 @@ function baseConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   } as AppConfig;
 }
 
-function renderMenu() {
-  return render(
+function renderMenu(onOpenSettings = vi.fn()) {
+  const view = render(
     <I18nProvider initial="en">
       <EntrySettingsMenu
         config={baseConfig()}
-        onOpenSettings={vi.fn()}
+        onOpenSettings={onOpenSettings}
       />
     </I18nProvider>,
   );
+  return { ...view, onOpenSettings };
 }
 
 /**
@@ -95,6 +96,17 @@ describe('EntrySettingsMenu in closed-network mode', () => {
 
     expect(container.querySelector('.entry-settings-menu__select-trigger')).not.toBeNull();
     expect(screen.getByTestId('entry-settings-open-details')).not.toBeNull();
+  });
+
+  // Rendering the row is not the guarantee users care about — closed-network
+  // mode must not swallow the click that actually opens Settings.
+  it('opens Settings when the row is clicked', () => {
+    setClosedNetwork(true);
+    const { onOpenSettings } = renderMenu();
+    fireEvent.click(screen.getByTestId('entry-settings-menu-trigger'));
+    fireEvent.click(screen.getByTestId('entry-settings-open-details'));
+
+    expect(onOpenSettings).toHaveBeenCalled();
   });
 
   it('drops the social share grid', () => {

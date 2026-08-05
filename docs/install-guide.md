@@ -217,6 +217,24 @@ Still allowed, because these are the endpoints the product actually works
 against: your configured LLM / BYOK provider, Tavily research, and the deploy
 providers. Point them at your internal hosts as usual.
 
+#### Turning it back off
+
+`od daemon status --json` is the authority — the daemon resolves the mode at
+startup and the UI only mirrors what it reports. If the UI still hides the SNS
+surfaces after you expected the mode to be off, check that command first:
+
+- **Reports `true`.** The mode really is on. Look for a marker file
+  (`~/.open-design/closed-network`, or under `OD_USER_STATE_DIR`) — it outranks
+  `OD_CLOSED_NETWORK=0` by design. Remove it and restart the daemon.
+- **Reports `false` but the UI disagrees.** The renderer is holding a stale
+  first-paint hint. It expires on its own within a day, and reloading the app
+  once the daemon is up clears it immediately.
+
+Settings itself is never hidden by this mode: it stays behind the gear in the
+top-right, and everything except the SNS and share rows works exactly as it does
+on a connected install. On a brand-new profile the gear only appears once the
+onboarding wizard is finished.
+
 ## Troubleshooting
 
 | Problem | Likely cause | Fix |

@@ -2062,16 +2062,6 @@ function AppInner() {
         setPromptTemplatesLoading(false);
       });
 
-      // Deployment switches, resolved before the entry shell decides which
-      // chrome to render. Kept out of the config Promise.all below so the
-      // SNS/share surfaces settle as early as possible rather than waiting on
-      // the slowest of three config reads. Not cancel-guarded: this is a
-      // module store, not component state, and a late resolution is still the
-      // correct answer for whatever mounts next.
-      void fetchDaemonRuntimeFlags().then((flags) => {
-        setClosedNetwork(flags.closedNetwork);
-      });
-
       void fetchAppVersionInfo().then((info) => {
         if (cancelled) return;
         setAppVersionInfo(info);
@@ -2210,6 +2200,28 @@ function AppInner() {
     projectsLoading,
     workspaceContext,
   ]);
+
+  // Deployment switches, resolved independently of the bootstrap effect above.
+  // They must NOT sit behind its `daemonIsLive()` gate: /api/daemon/status is
+  // its own endpoint and answers whenever the daemon is up, and the bootstrap
+  // effect cannot re-run (its deps are stable callbacks, so a daemon that binds
+  // after the web server never gets a second pass). Behind that gate the cached
+  // first-paint hint became the permanent answer, which is how an install could
+  // stay in closed-network mode after being restarted with OD_CLOSED_NETWORK=0.
+  // Keyed on daemonLive so a late-binding daemon still gets to correct it.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchDaemonRuntimeFlags().then((flags) => {
+      // A null answer means the daemon did not reply, not that the mode is
+      // off. Keep the cached hint and wait for the next liveness change rather
+      // than guessing "open" at a machine that is genuinely locked down.
+      if (cancelled || flags == null) return;
+      setClosedNetwork(flags.closedNetwork);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [daemonLive]);
 
   // Auto-pick the first available agent once both the daemon-stored config
   // and the agents listing have landed. Splitting this out of bootstrap
