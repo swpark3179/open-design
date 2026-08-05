@@ -101,8 +101,13 @@ instead of hanging on a connect timeout).
 Not blocked: LLM and BYOK provider endpoints, Tavily research, Vercel/Cloudflare
 deploy, the `unpkg` artifact-preview runtime, and decorative remote images
 (favicons, avatars, style thumbnails) which degrade to placeholders on their own.
-`apps/web/src/index.css` still `@import`s Google Fonts unconditionally — the one
-remaining unconditional third-party request from the renderer.
+
+The renderer's Cairo webfont is attached at runtime by
+`apps/web/src/features/remoteWebFont.ts`, not by a CSS `@import`. A stylesheet
+cannot read the flag, so an `@import` fired on every load regardless of the mode
+and — on a network that drops rather than refuses the packet — blocked first
+paint until the connect timeout. Do not reintroduce a remote `@import` in
+`index.css`; add the request to that module instead.
 
 When adding a surface that reaches the network or links off-box, gate it: the
 daemon side on the resolved `RUNTIME_CLOSED_NETWORK`, the web side on

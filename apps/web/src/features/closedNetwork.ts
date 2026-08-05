@@ -54,6 +54,15 @@ function readSeed(): boolean {
 }
 
 let closedNetwork = readSeed();
+
+// Whether the daemon has answered this session. The cached hint above is a
+// guess; this is not. Hiding a surface can safely act on the guess — the worst
+// case is one frame of chrome — but *issuing* a request cannot, because a
+// request sent before the answer arrives cannot be taken back. Consumers that
+// reach the network gate on this too, so "unknown" means "don't reach out yet"
+// while still meaning "show the UI" everywhere else.
+let resolved = false;
+
 const listeners = new Set<() => void>();
 
 function writeSeed(value: boolean): void {
@@ -76,8 +85,10 @@ function writeSeed(value: boolean): void {
  */
 export function setClosedNetwork(value: boolean): void {
   writeSeed(value);
-  if (closedNetwork === value) return;
+  const changed = closedNetwork !== value || !resolved;
   closedNetwork = value;
+  resolved = true;
+  if (!changed) return;
   for (const listener of listeners) listener();
 }
 
@@ -113,9 +124,26 @@ export function useClosedNetwork(): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
+function getResolvedSnapshot(): boolean {
+  return resolved;
+}
+
+/**
+ * True once the daemon has reported the mode this session.
+ *
+ * Gate outbound requests on `useClosedNetworkResolved() && !useClosedNetwork()`
+ * rather than on the flag alone. The flag starts from a cached hint, so on a
+ * fresh profile it reads `false` until the daemon answers — long enough to let
+ * a request escape a machine that turns out to be locked down.
+ */
+export function useClosedNetworkResolved(): boolean {
+  return useSyncExternalStore(subscribe, getResolvedSnapshot, getServerSnapshot);
+}
+
 /** Test-only reset so suites do not leak state between cases. */
 export function __resetClosedNetworkForTests(): void {
   closedNetwork = false;
+  resolved = false;
   writeSeed(false);
   for (const listener of listeners) listener();
 }

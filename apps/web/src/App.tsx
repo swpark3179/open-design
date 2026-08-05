@@ -87,6 +87,7 @@ import {
 } from './providers/registry';
 import { openFirstPartyExternalLinkFromClick } from './first-party-external-link';
 import { setClosedNetwork } from './features/closedNetwork';
+import { useRemoteWebFont } from './features/remoteWebFont';
 import {
   RUNS_CHANGED_EVENT,
   fetchAmrModels,
@@ -2200,6 +2201,10 @@ function AppInner() {
     projectsLoading,
     workspaceContext,
   ]);
+
+  // Attaches the remote webfont on connected installs only. Lives here rather
+  // than as a CSS @import so closed-network installs issue no font request.
+  useRemoteWebFont();
 
   // Deployment switches, resolved independently of the bootstrap effect above.
   // They must NOT sit behind its `daemonIsLive()` gate: /api/daemon/status is
