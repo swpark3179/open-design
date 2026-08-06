@@ -111,7 +111,17 @@ paint until the connect timeout. Do not reintroduce a remote `@import` in
 
 When adding a surface that reaches the network or links off-box, gate it: the
 daemon side on the resolved `RUNTIME_CLOSED_NETWORK`, the web side on
-`useClosedNetwork()` / `isClosedNetwork()` from `apps/web/src/features/closedNetwork.ts`.
+`apps/web/src/features/closedNetwork.ts`. Which web hook depends on what the
+gate does, and the two are not interchangeable:
+
+- **Hiding** a surface may act on the flag alone (`useClosedNetwork()` /
+  `isClosedNetwork()`). The worst case is one frame of visible chrome, which a
+  late correction takes back.
+- **Issuing a request** must gate on `useClosedNetworkResolved() && !useClosedNetwork()`.
+  On a fresh profile there is no hint, so the bare flag reads "open" for the
+  first frames of every boot — exactly when a boot-time effect runs — and a sent
+  request cannot be recalled. `useGithubStars` read the bare flag and put two
+  refused `/api/github/open-design` calls on the wire on every locked-down boot.
 
 The web store is a cache, not a source of truth. It paints the first frame from
 an expiring localStorage hint and is re-asserted from `GET /api/daemon/status` on
@@ -121,6 +131,12 @@ and a correction that never re-runs turns the hint into the permanent answer —
 which is how the mode once became impossible to switch back off. `setClosedNetwork`
 takes only answers the daemon actually gave; `fetchDaemonRuntimeFlags` returns
 `null` for "no answer" precisely so a failed probe cannot be mistaken for "off".
+
+"No answer" means a throw, a non-ok status, or a body that will not parse. An
+ok, parseable payload that merely omits `closedNetwork` IS an answer — it comes
+from a daemon built before the flag, which by definition enforces nothing — so
+it reads as off. Filing it under silence left `resolved` false for the whole
+session on a version-skewed pair, and `resolved` gates a navigation.
 
 The Open Design Cloud identity gate is the one place where the cached hint is
 not good enough. #5517 made Home an authenticated surface: `EntryShell`
@@ -135,9 +151,23 @@ alone: the sign-out result and the mode both land when the daemon comes live,
 the sign-out routinely lands first, and unlike a hidden badge a navigation
 cannot be taken back by a correction one tick later.
 
+A hold needs someone to release it, so `EntryShell` resolves the mode itself
+when nothing else has. The authoritative read lives in `AppInner` (it re-runs on
+every `daemonLive` change and can correct a stale hint), but the gate lives in
+the shell — and a gate that waits on a signal its own component never obtains is
+just the gate deleted. Mounted without that effect, or booted where its fetch
+lost, the shell kept a signed-out user on Home forever on an ordinary connected
+install. The shell's read only runs while unresolved and `setClosedNetwork` is
+idempotent, so the two never fight.
+
 Post-#5517 the web surfaces to keep gated are `EntryNavRail`'s account menu
 (GitHub help / feature request / the GitHub·Discord·X·mail row), the What's New
-popup, `DesignFilesPanel`'s community tips, and the viewer's Share tab.
+popup, `DesignFilesPanel`'s community tips, the viewer's Share tab, and
+`SettingsDialog`'s Open Design Cloud sign-in callout. That last one sits at the
+top of "Models & providers", the section Settings opens on, and its button
+starts the same device-auth round-trip the mode already withholds from
+onboarding's Hosted option — a signed-out closed-network install must not be
+handed it. An install that IS signed in keeps it, same rule as Hosted.
 `EntrySettingsMenu` and `EntryHelpMenu` still carry their gating but neither is
 mounted anymore; treat them as dormant, not as the live entry surface.
 

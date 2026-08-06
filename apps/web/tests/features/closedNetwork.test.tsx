@@ -163,12 +163,28 @@ describe('fetchDaemonRuntimeFlags', () => {
     globalThis.fetch = vi.fn(async () => new Response('nope', { status: 500 })) as typeof fetch;
     await expect(fetchDaemonRuntimeFlags()).resolves.toBeNull();
 
+    // A body that will not parse — a captive portal or proxy page, say — is
+    // not the daemon speaking either.
     globalThis.fetch = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true }), {
+      new Response('<html>proxy</html>', { status: 200 }),
+    ) as typeof fetch;
+    await expect(fetchDaemonRuntimeFlags()).resolves.toBeNull();
+  });
+
+  // A parseable answer that simply omits the field is NOT silence: it comes
+  // from a daemon built before the flag, which by definition is not enforcing
+  // the mode. Filing it under "did not answer" left `resolved` false forever —
+  // and that flag gates a navigation, so the Cloud identity gate quietly
+  // stopped firing on version-skewed installs with nothing to restore it.
+  it('reads an answer without the field as the mode being off', async () => {
+    const { fetchDaemonRuntimeFlags } = await import('../../src/providers/registry');
+
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true, version: '0.0.0' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
     ) as typeof fetch;
-    await expect(fetchDaemonRuntimeFlags()).resolves.toBeNull();
+    await expect(fetchDaemonRuntimeFlags()).resolves.toEqual({ closedNetwork: false });
   });
 });

@@ -189,7 +189,7 @@ import { defaultKnownProviderModel, KNOWN_PROVIDERS } from '../state/config';
 import type { KnownProvider } from '../state/config';
 import { testAgent, testApiProvider } from '../providers/connection-test';
 import { fetchProviderModels } from '../providers/provider-models';
-import { invalidateProjectFilesCache } from '../providers/registry';
+import { fetchDaemonRuntimeFlags, invalidateProjectFilesCache } from '../providers/registry';
 import {
   cancelVelaLogin,
   fetchVelaLoginStatus,
@@ -205,7 +205,11 @@ import { closeAmrActivationWindowBestEffort } from './AmrLoginPill';
 import { smoothScrollToTop } from '../utils/smoothScrollToTop';
 import { summarizeProjectNameFromPrompt } from '../utils/projectName';
 import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
-import { useClosedNetwork, useClosedNetworkResolved } from '../features/closedNetwork';
+import {
+  setClosedNetwork,
+  useClosedNetwork,
+  useClosedNetworkResolved,
+} from '../features/closedNetwork';
 import {
   providerModelsCacheKey,
   type ProviderModelsCache,
@@ -584,6 +588,27 @@ export function EntryShell({
   // view from the route rather than keeping it in component state.
   const route = useRoute();
   const view: EntryViewKind = route.kind === 'home' ? route.view : 'home';
+  // The gate below holds until the mode is known, so the shell has to make sure
+  // it becomes known — a hold with no one to release it is just the redirect
+  // deleted. `AppInner` owns the authoritative read (it re-runs on every
+  // `daemonLive` change and can correct a stale hint), but EntryShell must not
+  // depend on a signal it does not obtain: mounted without that effect, or
+  // booted where its fetch failed, the shell would keep a signed-out user on
+  // Home forever on a perfectly connected install. Runs only while unresolved,
+  // and `setClosedNetwork` is idempotent, so the two never fight.
+  useEffect(() => {
+    if (closedNetworkResolved) return;
+    let cancelled = false;
+    void fetchDaemonRuntimeFlags().then((flags) => {
+      // Null is "the daemon did not answer", not "the mode is off" — keep
+      // holding and let the next liveness change try again.
+      if (cancelled || flags == null) return;
+      setClosedNetwork(flags.closedNetwork);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [closedNetworkResolved, daemonLive]);
   useEffect(() => {
     // The entry shell is the authenticated Home surface. A definitive
     // signed-out result returns it to the Cloud identity gate while leaving

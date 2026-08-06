@@ -1498,20 +1498,26 @@ export async function fetchAppVersionInfo(): Promise<AppVersionInfo | null> {
  * endpoint — deliberately not /api/app-config, so no client write can flip
  * closed-network mode off.
  *
- * Returns `null` when the daemon did not answer — a throw, a non-ok status, or
- * a body carrying no boolean `closedNetwork`. That is deliberately distinct
+ * Returns `null` only when the daemon did not answer — a throw, a non-ok
+ * status, or a body that is not parseable JSON. That is deliberately distinct
  * from `{ closedNetwork: false }`, which means the daemon answered and the mode
  * is off. Callers must not collapse the two: the renderer keeps a cached hint
  * for the first frame, and overwriting it with a guessed "open" would flash the
  * SNS chrome back on for a machine that is genuinely locked down.
+ *
+ * An ok, parseable body that simply has no `closedNetwork` field IS an answer:
+ * it comes from a daemon built before the flag existed, and such a daemon
+ * cannot be enforcing the mode. Reporting "no answer" there left the renderer
+ * permanently unresolved, and `useClosedNetworkResolved()` gates a navigation
+ * (EntryShell's Cloud identity gate) — so a version-skewed pair silently lost
+ * that redirect with nothing to ever restore it.
  */
 export async function fetchDaemonRuntimeFlags(): Promise<DaemonRuntimeFlags | null> {
   try {
     const resp = await fetch('/api/daemon/status');
     if (!resp.ok) return null;
     const json = (await resp.json()) as Partial<DaemonStatusResponse>;
-    if (typeof json.closedNetwork !== 'boolean') return null;
-    return { closedNetwork: json.closedNetwork };
+    return { closedNetwork: json?.closedNetwork === true };
   } catch {
     return null;
   }

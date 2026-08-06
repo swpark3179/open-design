@@ -4417,11 +4417,17 @@ export function SettingsDialog({
                 </button>
               </div>
               </div>
-              {cfg.mode === 'daemon' && amrCardStatus?.loggedIn !== true ? (
+              {cfg.mode === 'daemon' && amrCardStatus?.loggedIn !== true && !closedNetwork ? (
                 // Only prompt to sign into Open Design Cloud when NOT already
                 // signed in — the AMR/vela session IS the cloud identity (one
                 // session drives both), so a logged-in user has nothing to do
                 // here and the callout was showing spuriously.
+                //
+                // Closed-network installs never get the prompt: it starts the
+                // same outbound device-auth round-trip as onboarding's Hosted
+                // option, which the mode already withholds for exactly this
+                // reason. Offering it here would put a button that cannot
+                // succeed at the top of the section Settings opens on.
                 <div className="settings-cloud-signin-callout">
                   <div>
                     <strong>{t('settings.cloudCalloutTitle')}</strong>

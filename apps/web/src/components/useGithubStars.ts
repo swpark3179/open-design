@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import type { OpenDesignGithubRepoResponse } from '@open-design/contracts';
-import { isClosedNetwork } from '../features/closedNetwork';
+import { useClosedNetwork, useClosedNetworkResolved } from '../features/closedNetwork';
 
 const API = '/api/github/open-design';
 const REPO = 'https://github.com/nexu-io/open-design';
@@ -106,12 +106,20 @@ export function useGithubStars(): number | null {
     return persisted ? persisted.count : null;
   });
 
+  // Hiding a badge may act on the cached hint; issuing a request may not. On a
+  // fresh profile the hint is absent, so the bare flag reads "open" for the
+  // first frames of every boot — which is exactly when this effect ran, and a
+  // request sent then cannot be taken back. See features/closedNetwork.ts.
+  const closedNetwork = useClosedNetwork();
+  const closedNetworkResolved = useClosedNetworkResolved();
+
   useEffect(() => {
-    // Closed-network installs never ask. The badge is already unmounted in that
-    // mode (see EntryShell), and the daemon refuses the request anyway — this
-    // guard just keeps the "no outbound attempt" property true for any future
-    // caller of the hook.
-    if (isClosedNetwork()) return;
+    // Wait for the daemon's answer, then ask only if the mode is off. The
+    // daemon refuses the request in closed-network mode regardless, so before
+    // this the leak was visible as a 503 on every locked-down boot rather than
+    // as leaked data — but "no outbound attempt" is the property the mode
+    // promises, and a refused request is still an attempt.
+    if (!closedNetworkResolved || closedNetwork) return;
     const now = Date.now();
     const cached = memoryCache ?? readPersistedCache();
     if (cached && now - cached.ts < CACHE_TTL_MS) {
@@ -158,7 +166,7 @@ export function useGithubStars(): number | null {
       }
     })();
     return () => ctrl.abort();
-  }, []);
+  }, [closedNetwork, closedNetworkResolved]);
 
   return count;
 }

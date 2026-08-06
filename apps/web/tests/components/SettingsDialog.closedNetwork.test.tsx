@@ -39,11 +39,19 @@ const appVersionInfo = {
   arch: 'arm64',
 } as never;
 
-function renderSettings(section: string, locale: 'en' | 'ko' = 'en') {
+// The cloud callout only renders for the local-CLI ("daemon") mode, which is
+// what a closed-network install runs on.
+const localCliConfig: AppConfig = { ...baseConfig, mode: 'daemon' } as AppConfig;
+
+function renderSettings(
+  section: string,
+  locale: 'en' | 'ko' = 'en',
+  config: AppConfig = baseConfig,
+) {
   return render(
     <I18nProvider initial={locale}>
       <SettingsDialog
-        initial={baseConfig}
+        initial={config}
         agents={[]}
         daemonLive
         appVersionInfo={appVersionInfo}
@@ -82,5 +90,22 @@ describe('SettingsDialog with closed-network mode on', () => {
     setClosedNetwork(false);
     expect(() => renderSettings('execution')).not.toThrow();
     expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  // "Models & providers" is the section Settings opens on, and this callout
+  // sits at the top of it. Its button starts the same outbound device-auth
+  // round-trip the mode already withholds from onboarding's Hosted option, so
+  // on an intranet it is a control that cannot succeed in the most prominent
+  // position of the screen.
+  it('withholds the Open Design Cloud sign-in callout', () => {
+    setClosedNetwork(true);
+    renderSettings('execution', 'en', localCliConfig);
+    expect(screen.queryByText('Use Open Design Cloud')).toBeNull();
+  });
+
+  it('keeps the callout on a connected install', () => {
+    setClosedNetwork(false);
+    renderSettings('execution', 'en', localCliConfig);
+    expect(screen.getByText('Use Open Design Cloud')).toBeTruthy();
   });
 });

@@ -167,13 +167,55 @@ describe('EntryShell cloud identity gate in closed-network mode', () => {
   // the sign-out result routinely lands first — redirecting on that alone is
   // what stranded closed-network installs, and a later correction cannot
   // navigate back without fighting the user's history.
+  //
+  // "Has not answered" has to mean a daemon that genuinely did not reply: the
+  // shell asks for the mode itself when nobody has resolved it, so a reachable
+  // daemon always ends the hold. A 200 whose body simply omits the field is an
+  // answer — from a build that predates the flag, and therefore cannot be
+  // enforcing the mode.
   it('holds the redirect until the daemon has answered', async () => {
+    globalThis.fetch = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (url.includes('/api/daemon/status')) return new Response(null, { status: 503 });
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as unknown as typeof fetch;
     renderShell();
 
     await new Promise((resolve) => {
       setTimeout(resolve, 50);
     });
     expect(cloudGateVisible()).toBe(false);
+  });
+
+  // The counterweight to the hold: an unresolved shell must resolve itself.
+  // The gate lives in EntryShell but the authoritative read lives in AppInner,
+  // so a shell mounted without it — or booted where its fetch lost — held a
+  // redirect that nothing was ever going to release, silently dropping the
+  // #5517 gate on an ordinary connected install.
+  it('asks the daemon itself when nothing else has resolved the mode', async () => {
+    renderShell();
+
+    await waitFor(() => {
+      expect(cloudGateVisible()).toBe(true);
+    });
+  });
+
+  // A daemon built before the flag answers without the field. That is still an
+  // answer, and it can only mean the mode is off — treating it as silence left
+  // a version-skewed pair permanently unresolved.
+  it('treats a status payload without the field as the mode being off', async () => {
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ok: true, version: '0.0.0' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    ) as unknown as typeof fetch;
+    renderShell();
+
+    await waitFor(() => {
+      expect(cloudGateVisible()).toBe(true);
+    });
   });
 });
 
