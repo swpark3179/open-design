@@ -4,6 +4,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MessageCenter } from '../../src/components/MessageCenter';
+import {
+  __resetClosedNetworkForTests,
+  setClosedNetwork,
+} from '../../src/features/closedNetwork';
 import { I18nProvider, useI18n } from '../../src/i18n';
 import type { MessageCenterMessage } from '../../src/message-center-client';
 
@@ -54,11 +58,16 @@ async function openCenter(unreadCount = 1) {
 
 beforeEach(() => {
   localStorage.clear();
+  // These cases are a connected install whose daemon has answered. The panel
+  // only pulls the hosted feed once the mode is known to be off — see
+  // MessageCenter.closedNetwork.test.tsx for the other side.
+  setClosedNetwork(false);
   mockFetch();
 });
 
 afterEach(() => {
   cleanup();
+  __resetClosedNetworkForTests();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });

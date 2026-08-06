@@ -12,6 +12,7 @@ import {
 } from '../agents.js';
 import { readAnalyticsContext } from '../analytics.js';
 import { agentCliEnvForAgent, type AppConfigPrefs, writeAppConfig } from '../app-config.js';
+import { CLOSED_NETWORK_ERROR_CODE, ClosedNetworkError } from '../closed-network.js';
 import {
   validateExternalPluginContext,
   validatePluginWorkflowId,
@@ -142,6 +143,13 @@ export interface RegisterVelaRoutesDeps {
   http: {
     getPublicBaseUrl?: PublicBaseUrlResolver;
   };
+  /**
+   * The mode the daemon resolved at startup. Passed in rather than re-read
+   * here so the process keeps exactly one resolution point — see
+   * `closed-network.ts`. Only the message-center feeds consult it; LLM and
+   * device-auth traffic is out of the mode's scope.
+   */
+  closedNetwork?: boolean;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -400,6 +408,7 @@ function proxyVelaMessageCenterRequest(
 
 export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): void {
   const env = deps.env ?? process.env;
+  const closedNetwork = deps.closedNetwork === true;
   const { RUNTIME_DATA_DIR } = deps.paths;
   const { readAppConfig } = deps.appConfig;
   const getPublicBaseUrl = deps.http.getPublicBaseUrl ?? ((req: Request) => {
@@ -407,6 +416,25 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
     const host = req.get('host');
     return host ? `${proto}://${host}` : 'http://localhost:7456';
   });
+
+  /**
+   * The message centre is a hosted announcement feed — the same family as the
+   * What's New card, which the mode already blocks. It polls every 60s, so on
+   * an intranet it is a standing outbound attempt whose only visible product
+   * is the panel's error state.
+   *
+   * A refusal by policy is 503 with the machine-readable code, matching
+   * `open-design-public-metadata.ts`, so a caller can tell it apart from the
+   * upstream being down. Returns true when the request was refused.
+   */
+  function refuseMessageCenterOnClosedNetwork(res: Response): boolean {
+    if (!closedNetwork) return false;
+    res.status(503).json({
+      error: CLOSED_NETWORK_ERROR_CODE,
+      message: new ClosedNetworkError('The message centre').message,
+    });
+    return true;
+  }
 
   function resolveAmrModelProbeForEnv(configuredEnv: Record<string, string>): AmrModelProbe {
     const def = getAgentDef('amr');
@@ -603,6 +631,7 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
   app.all('/api/integrations/vela/api-proxy/*splat', proxyAmrApiRequest);
 
   app.get('/api/integrations/vela/message-center-public/messages', async (req, res) => {
+    if (refuseMessageCenterOnClosedNetwork(res)) return;
     try {
       const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
       const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');
@@ -614,6 +643,7 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
   });
 
   app.all('/api/integrations/vela/message-center/*splat', async (req, res) => {
+    if (refuseMessageCenterOnClosedNetwork(res)) return;
     try {
       const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
       const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');

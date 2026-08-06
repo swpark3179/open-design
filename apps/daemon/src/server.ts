@@ -7516,6 +7516,7 @@ export async function startServer({
     paths: { RUNTIME_DATA_DIR },
     appConfig: { readAppConfig },
     http: { getPublicBaseUrl },
+    closedNetwork: RUNTIME_CLOSED_NETWORK,
     env: process.env,
   });
 

@@ -93,7 +93,9 @@ private `src/`) and a lenient env-only reader in
 across all three; their tests assert the same matrix.
 
 Blocked when on: GitHub repo/release metadata, Discord presence, the What's New
-feed, PostHog and Langfuse/relay telemetry, install attribution, the packaged
+feed, the message centre (both the anonymous and the account proxy — a hosted
+announcement feed in the same family as What's New, and it polls every 60s),
+PostHog and Langfuse/relay telemetry, install attribution, the packaged
 auto-updater, the newsletter signup, and user-initiated GitHub / shadcn /
 community-pet / marketplace fetches (these fail fast with a readable error
 instead of hanging on a connect timeout).
@@ -170,6 +172,15 @@ onboarding's Hosted option — a signed-out closed-network install must not be
 handed it. An install that IS signed in keeps it, same rule as Hosted.
 `EntrySettingsMenu` and `EntryHelpMenu` still carry their gating but neither is
 mounted anymore; treat them as dormant, not as the live entry surface.
+
+`MessageCenter` keeps its rail entry and its panel but stops pulling: the feed
+is hosted and nothing else, so the mode settles it to the empty state rather
+than letting the poll convert a permanent refusal into a 60-second error-state
+heartbeat. Messages cached before lockdown still render and still mark as read
+— the mode stops new requests, it does not withdraw local content — and reads
+take the anonymous (localStorage) path, since without the feed there is no
+server-side read state to sync. The daemon refuses both proxies as well, so a
+CLI or embedding agent gets the 503 `closed-network` code instead of a hang.
 
 ## Daemon data directory contract
 

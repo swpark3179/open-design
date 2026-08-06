@@ -2,6 +2,7 @@ import { Button } from '@open-design/components';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useClosedNetwork, useClosedNetworkResolved } from '../features/closedNetwork';
 import { useI18n, type Locale } from '../i18n';
 import {
   clearAnonymousState,
@@ -74,6 +75,13 @@ export function MessageCenter({
     },
     [onOpenChange],
   );
+  // The feed is hosted by Open Design Cloud and nothing else — same family as
+  // the What's New card the mode already blocks. Gate on the daemon's actual
+  // answer, not the flag: this syncs on mount, and on a fresh profile the bare
+  // flag reads "open" until the daemon replies. See features/closedNetwork.ts.
+  const closedNetwork = useClosedNetwork();
+  const closedNetworkResolved = useClosedNetworkResolved();
+  const canReachFeed = closedNetworkResolved && !closedNetwork;
   const [filter, setFilter] = useState<MessageCenterFilter>('all');
   const [messages, setMessages] = useState<MessageCenterMessage[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
@@ -131,11 +139,20 @@ export function MessageCenter({
   }, [commitState, locale]);
 
   const resolveLoggedInForWrite = useCallback(async () => {
+    // Without the feed there is no server-side read state to sync, and the only
+    // messages on screen are the anonymous ones cached before lockdown. Taking
+    // the account path would push a read receipt at a proxy that now refuses
+    // it, turning a local "mark as read" into the panel's error state.
+    if (!canReachFeed) {
+      loggedInRef.current = false;
+      setLoggedIn(false);
+      return false;
+    }
     const account = await isAmrLoggedIn();
     loggedInRef.current = account;
     setLoggedIn(account);
     return account;
-  }, []);
+  }, [canReachFeed]);
 
   const retrySync = useCallback(() => {
     void sync().catch(() => setSyncState('error'));
@@ -153,6 +170,15 @@ export function MessageCenter({
   }, [commitState]);
 
   useEffect(() => {
+    // A closed network has no feed to poll, so there is nothing to wait for
+    // either: settle to `ready` and let the panel show its empty state over
+    // whatever was cached before lockdown. Leaving it at the initial `loading`
+    // would spin forever, and letting the poll run turned a permanent refusal
+    // into a 60-second error-state heartbeat.
+    if (!canReachFeed) {
+      setSyncState('ready');
+      return;
+    }
     retrySync();
     const interval = window.setInterval(retrySync, 60_000);
     const onVisibility = () => {
@@ -163,11 +189,11 @@ export function MessageCenter({
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [retrySync]);
+  }, [canReachFeed, retrySync]);
 
   useEffect(() => {
-    if (open) retrySync();
-  }, [open, retrySync]);
+    if (open && canReachFeed) retrySync();
+  }, [canReachFeed, open, retrySync]);
 
   const unreadCount = messages.filter((message) => !message.readAt).length;
 
