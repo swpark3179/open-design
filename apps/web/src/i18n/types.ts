@@ -630,6 +630,9 @@ export interface Dict {
   // About → read-only indicator shown only when closed-network mode is on.
   'settings.appNetwork': string;
   'settings.appNetworkClosed': string;
+  // Model-source step subtitle for closed-network installs, which are not
+  // offered Hosted (it needs the cloud sign-in the mode skips).
+  'settings.onboardingExecutionBodyClosedNetwork': string;
   'settings.runtimePackaged': string;
   'settings.runtimeDevelopment': string;
   'settings.versionUnavailable': string;

@@ -311,6 +311,7 @@ export const ja: Dict = {
   'settings.onboardingSystemsBody': 'ブランドシステムを選択または作成すると、生成される成果物が実際の色、タイポグラフィ、プロダクトの言語表現に従います。',
   'settings.onboardingExecutionTitle': 'モデルの提供元を選択',
   'settings.onboardingExecutionBody': 'Open Design Hosted、ローカルエージェント、または自分のモデルキーから選べます。',
+  'settings.onboardingExecutionBodyClosedNetwork': 'ローカルエージェントを接続するか、自分のモデルキーを使用してください。',
   'settings.onboardingAmrCloudBenefitOfficial': '公式おすすめ',
   'settings.onboardingAmrCloudBenefitReady': 'デプロイ不要',
   'settings.onboardingAmrCloudBenefitModels': 'Claude、GPT、Fable 5、5.6 sol を期間限定割引と高い同時実行数で利用できます。',

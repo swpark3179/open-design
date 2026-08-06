@@ -311,6 +311,7 @@ export const ko: Dict = {
   'settings.onboardingSystemsBody': '브랜드 시스템을 선택하거나 생성하여 생성된 작업물이 실제 색상, 타이포그래피, 제품 언어를 따르도록 하세요.',
   'settings.onboardingExecutionTitle': '모델 소스 선택',
   'settings.onboardingExecutionBody': 'Open Design Hosted를 사용하거나 로컬 에이전트를 연결하거나 자신의 모델 키를 사용하세요.',
+  'settings.onboardingExecutionBodyClosedNetwork': '로컬 에이전트를 연결하거나 자신의 모델 키를 사용하세요.',
   'settings.onboardingAmrCloudBenefitOfficial': '공식 추천',
   'settings.onboardingAmrCloudBenefitReady': '배포 없이 사용',
   'settings.onboardingAmrCloudBenefitModels': '한정 할인과 높은 동시 처리량으로 Claude, GPT, Fable 5, 5.6 sol을 이용하세요.',

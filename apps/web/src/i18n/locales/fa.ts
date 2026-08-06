@@ -311,6 +311,7 @@ export const fa: Dict = {
   'settings.onboardingSystemsBody': 'یک سیستم برند انتخاب یا ایجاد کنید تا کارهای تولیدشده از رنگ‌ها، تایپوگرافی و زبان محصول واقعی پیروی کنند.',
   'settings.onboardingExecutionTitle': 'منبع مدل را انتخاب کنید',
   'settings.onboardingExecutionBody': 'از سرویس میزبانی‌شده Open Design استفاده کنید، یک عامل محلی را متصل کنید یا کلید مدل خود را بیاورید.',
+  'settings.onboardingExecutionBodyClosedNetwork': 'یک عامل محلی را متصل کنید یا کلید مدل خود را بیاورید.',
   'settings.onboardingAmrCloudBenefitOfficial': 'توصیه‌شده رسمی',
   'settings.onboardingAmrCloudBenefitReady': 'بدون نیاز به استقرار',
   'settings.onboardingAmrCloudBenefitModels': 'با تخفیف محدود و هم‌زمانی بالا به Claude، GPT، Fable 5 و5.6 sol دسترسی داشته باشید.',

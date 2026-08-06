@@ -55,6 +55,7 @@ import { RemixIcon } from './RemixIcon';
 import { InviteDialog } from './InviteDialog';
 import { MessageCenter } from './MessageCenter';
 import type { EntrySettingsSection } from './EntrySettingsMenu';
+import { useClosedNetwork } from '../features/closedNetwork';
 import { useI18n } from '../i18n';
 import { useDismissOnOutsideInteraction } from '../hooks/useDismissOnOutsideInteraction';
 import {
@@ -666,6 +667,11 @@ export function EntryNavRail({
   // Sign-out confirm gate (recvqgMWpJZqhL): the menu item only ARMS the
   // confirmation dialog; the real logout chain runs on explicit confirm.
   const [confirmSignOut, setConfirmSignOut] = useState(false);
+  // #5517 moved the SNS chrome off the topbar and into this rail's account
+  // menu, so this is where closed-network installs now drop it. Settings,
+  // Message center, credits and Sign out stay — they are the entries that
+  // still work without the public internet. See features/closedNetwork.ts.
+  const closedNetwork = useClosedNetwork();
   const githubStars = useGithubStars();
   // Signed-in account email for the menu head (#5517 shows it under the
   // display name). The workspace context carries no email, so lazily read the
@@ -1165,6 +1171,8 @@ export function EntryNavRail({
                       between. Both controls still have a home in 设置·通用 (theme
                       segmented control + language picker), so dropping the
                       duplicates here costs no capability. */}
+                  {closedNetwork ? null : (
+                  <>
                   <a
                     className="entry-nav-rail__menu-item"
                     role="menuitem"
@@ -1251,6 +1259,8 @@ export function EntryNavRail({
                       <Icon name="mail" size={15} />
                     </a>
                   </div>
+                  </>
+                  )}
                   <div className="entry-nav-rail__menu-divider" />
                   <button
                     type="button"

@@ -311,6 +311,7 @@ export const th: Dict = {
   'settings.onboardingSystemsBody': 'เลือกหรือสร้างระบบแบรนด์ เพื่อให้งานที่สร้างขึ้นใช้สี ตัวอักษร และภาษาของผลิตภัณฑ์ตามจริง',
   'settings.onboardingExecutionTitle': 'เลือกแหล่งที่มาของโมเดล',
   'settings.onboardingExecutionBody': 'ใช้ Open Design Hosted เชื่อมต่อเอเจนต์ในเครื่อง หรือใช้คีย์โมเดลของคุณเอง',
+  'settings.onboardingExecutionBodyClosedNetwork': 'เชื่อมต่อเอเจนต์ในเครื่อง หรือใช้คีย์โมเดลของคุณเอง',
   'settings.onboardingAmrCloudBenefitOfficial': 'แนะนำอย่างเป็นทางการ',
   'settings.onboardingAmrCloudBenefitReady': 'ไม่ต้องดีพลอย',
   'settings.onboardingAmrCloudBenefitModels': 'ใช้ Claude, GPT, Fable 5 และ 5.6 sol พร้อมส่วนลดระยะเวลาจำกัดและการทำงานพร้อมกันสูง',

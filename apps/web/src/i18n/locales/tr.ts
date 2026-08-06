@@ -311,6 +311,7 @@ export const tr: Dict = {
   'settings.onboardingSystemsBody': 'Üretilen çalışmaların gerçek renkleri, tipografiyi ve ürün dilini izlemesi için bir marka sistemi seçin veya oluşturun.',
   'settings.onboardingExecutionTitle': 'Model kaynağını seçin',
   'settings.onboardingExecutionBody': 'Open Design Hosted kullanın, yerel bir ajan bağlayın veya kendi model anahtarınızı kullanın.',
+  'settings.onboardingExecutionBodyClosedNetwork': 'Yerel bir ajan bağlayın veya kendi model anahtarınızı kullanın.',
   'settings.onboardingAmrCloudBenefitOfficial': 'Resmi olarak önerilir',
   'settings.onboardingAmrCloudBenefitReady': 'Dağıtım gerekmez',
   'settings.onboardingAmrCloudBenefitModels': 'Claude, GPT, Fable 5 ve 5.6 sol modellerine sınırlı süreli indirim ve yüksek eşzamanlılıkla erişin.',

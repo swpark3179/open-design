@@ -311,6 +311,7 @@ export const uk: Dict = {
   'settings.onboardingSystemsBody': 'Виберіть або створіть бренд-систему, щоб згенерована робота відповідала справжнім кольорам, типографіці та мові продукту.',
   'settings.onboardingExecutionTitle': 'Виберіть джерело моделі',
   'settings.onboardingExecutionBody': 'Використовуйте Open Design Hosted, підключіть локального агента або вкажіть власний ключ моделі.',
+  'settings.onboardingExecutionBodyClosedNetwork': 'Підключіть локального агента або вкажіть власний ключ моделі.',
   'settings.onboardingAmrCloudBenefitOfficial': 'Офіційно рекомендовано',
   'settings.onboardingAmrCloudBenefitReady': 'Без розгортання',
   'settings.onboardingAmrCloudBenefitModels': 'Отримайте Claude, GPT, Fable 5 і 5.6 sol із тимчасовою знижкою та високою паралельністю.',

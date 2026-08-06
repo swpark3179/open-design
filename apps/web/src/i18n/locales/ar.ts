@@ -311,6 +311,7 @@ export const ar: Dict = {
   'settings.onboardingSystemsBody': 'اختر أو أنشئ نظام علامة تجارية حتى يتبع العمل المُولَّد الألوان والطباعة ولغة المنتج الحقيقية.',
   'settings.onboardingExecutionTitle': 'اختر مصدر النموذج',
   'settings.onboardingExecutionBody': 'استخدم خدمة Open Design المستضافة، أو صِل وكيل برمجة محليًا، أو استخدم مفتاح النموذج الخاص بك.',
+  'settings.onboardingExecutionBodyClosedNetwork': 'صِل وكيل برمجة محليًا، أو استخدم مفتاح النموذج الخاص بك.',
   'settings.onboardingAmrCloudBenefitOfficial': 'موصى به رسميًا',
   'settings.onboardingAmrCloudBenefitReady': 'بلا نشر',
   'settings.onboardingAmrCloudBenefitModels': 'استخدم Claude وGPT وFable 5 و5.6 sol بخصم لفترة محدودة وتزامن مرتفع.',

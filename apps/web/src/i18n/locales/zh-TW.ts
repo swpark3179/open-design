@@ -289,6 +289,7 @@ export const zhTW: Dict = {
   "settings.onboardingExecutionTitle": "選擇模型來源",
   "settings.onboardingExecutionBody":
     "使用 Open Design 託管服務、連接本機 Agent，或使用你自己的模型 Key。",
+  "settings.onboardingExecutionBodyClosedNetwork": "連接本機 Agent，或使用你自己的模型 Key。",
   "settings.onboardingAmrCloudBenefitOfficial": "官方推薦",
   "settings.onboardingAmrCloudBenefitReady": "免部署即用",
   "settings.onboardingAmrCloudBenefitModels":

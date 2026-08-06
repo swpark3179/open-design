@@ -289,6 +289,7 @@ export const zhCN: Dict = {
   "settings.onboardingExecutionTitle": "选择模型来源",
   "settings.onboardingExecutionBody":
     "使用 Open Design 托管服务、连接本地 Agent，或使用你自己的模型 Key。",
+  "settings.onboardingExecutionBodyClosedNetwork": "连接本地 Agent，或使用你自己的模型 Key。",
   "settings.onboardingAmrCloudBenefitOfficial": "官方推荐",
   "settings.onboardingAmrCloudBenefitReady": "免部署即用",
   "settings.onboardingAmrCloudBenefitModels":

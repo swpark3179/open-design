@@ -311,6 +311,7 @@ export const ptBR: Dict = {
   'settings.onboardingSystemsBody': 'Escolha ou crie um sistema de marca para que o trabalho gerado siga as cores, a tipografia e a linguagem real do produto.',
   'settings.onboardingExecutionTitle': 'Escolha a origem do modelo',
   'settings.onboardingExecutionBody': 'Use o Open Design Hosted, conecte um agente local ou utilize sua própria chave de modelo.',
+  'settings.onboardingExecutionBodyClosedNetwork': 'Conecte um agente local ou utilize sua própria chave de modelo.',
   'settings.onboardingAmrCloudBenefitOfficial': 'Recomendado oficialmente',
   'settings.onboardingAmrCloudBenefitReady': 'Sem deploy',
   'settings.onboardingAmrCloudBenefitModels': 'Acesse Claude, GPT, Fable 5 e 5.6 sol com desconto por tempo limitado e alta simultaneidade.',

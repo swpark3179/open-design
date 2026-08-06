@@ -311,6 +311,7 @@ export const id: Dict = {
   'settings.onboardingSystemsBody': 'Pilih atau buat sistem brand agar hasil kerja yang dihasilkan mengikuti warna, tipografi, dan bahasa produk yang sesungguhnya.',
   'settings.onboardingExecutionTitle': 'Pilih sumber model',
   'settings.onboardingExecutionBody': 'Gunakan Open Design Hosted, hubungkan agen lokal, atau gunakan kunci model Anda sendiri.',
+  'settings.onboardingExecutionBodyClosedNetwork': 'Hubungkan agen lokal atau gunakan kunci model Anda sendiri.',
   'settings.onboardingAmrCloudBenefitOfficial': 'Direkomendasikan resmi',
   'settings.onboardingAmrCloudBenefitReady': 'Tanpa deploy',
   'settings.onboardingAmrCloudBenefitModels': 'Akses Claude, GPT, Fable 5, dan 5.6 sol dengan diskon terbatas dan konkurensi tinggi.',

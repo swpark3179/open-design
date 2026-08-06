@@ -122,6 +122,25 @@ which is how the mode once became impossible to switch back off. `setClosedNetwo
 takes only answers the daemon actually gave; `fetchDaemonRuntimeFlags` returns
 `null` for "no answer" precisely so a failed probe cannot be mistaken for "off".
 
+The Open Design Cloud identity gate is the one place where the cached hint is
+not good enough. #5517 made Home an authenticated surface: `EntryShell`
+redirects a definitively signed-out user to the cloud sign-in screen, whose only
+control is an outbound OAuth round-trip. On a closed network that redirect
+strands the user — it replaces Home, so the nav rail and its Settings entry go
+with it, and no click can bring them back. So the mode suppresses the redirect
+entirely, and `OnboardingView` opens on the model-source step instead of the
+gate, with Hosted withheld from a signed-out install (it is that same sign-in
+under another name). Both gate on `useClosedNetworkResolved()`, not on the flag
+alone: the sign-out result and the mode both land when the daemon comes live,
+the sign-out routinely lands first, and unlike a hidden badge a navigation
+cannot be taken back by a correction one tick later.
+
+Post-#5517 the web surfaces to keep gated are `EntryNavRail`'s account menu
+(GitHub help / feature request / the GitHub·Discord·X·mail row), the What's New
+popup, `DesignFilesPanel`'s community tips, and the viewer's Share tab.
+`EntrySettingsMenu` and `EntryHelpMenu` still carry their gating but neither is
+mounted anymore; treat them as dormant, not as the live entry surface.
+
 ## Daemon data directory contract
 
 This section is the only repository-wide source of truth for daemon-managed

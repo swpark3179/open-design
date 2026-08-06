@@ -205,7 +205,7 @@ import { closeAmrActivationWindowBestEffort } from './AmrLoginPill';
 import { smoothScrollToTop } from '../utils/smoothScrollToTop';
 import { summarizeProjectNameFromPrompt } from '../utils/projectName';
 import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
-import { useClosedNetwork } from '../features/closedNetwork';
+import { useClosedNetwork, useClosedNetworkResolved } from '../features/closedNetwork';
 import {
   providerModelsCacheKey,
   type ProviderModelsCache,
@@ -573,8 +573,11 @@ export function EntryShell({
   const t = useT();
   // Closed-network installs drop the outbound chrome the entry shell still
   // owns after #5517 removed the topbar: the What's New feed popup. See
-  // features/closedNetwork.ts.
+  // features/closedNetwork.ts. `resolved` matters for the identity-gate
+  // redirect below, which is a navigation and therefore not undoable by a late
+  // correction the way a hidden badge is.
   const closedNetwork = useClosedNetwork();
+  const closedNetworkResolved = useClosedNetworkResolved();
   // Each entry sub-view (home / projects / design-systems) is its own
   // URL now, so the browser back/forward buttons work and a deep link
   // to /design-systems lands on that section. We derive the active
@@ -585,9 +588,24 @@ export function EntryShell({
     // The entry shell is the authenticated Home surface. A definitive
     // signed-out result returns it to the Cloud identity gate while leaving
     // the saved model source untouched for passive reauthentication.
+    //
+    // Closed-network installs are the exception, and it is not a cosmetic one:
+    // that gate is an outbound OAuth round-trip that can never complete on an
+    // intranet, so a permanently signed-out user was bounced into a screen
+    // whose only control cannot succeed. Home went with it, and so did the
+    // rail's Settings entry — the whole product became unreachable. Leave the
+    // signed-out user on Home; first-run onboarding still routes here through
+    // `shouldRouteToFirstRunOnboarding`, which keys off `onboardingCompleted`.
+    //
+    // Wait for the daemon's actual answer, not the cached hint: both this
+    // signal and the mode resolve off the same daemon coming live, and on a
+    // fresh profile the sign-out result lands first. Redirecting on a guess
+    // and correcting a beat later is not an option — the correction cannot
+    // navigate back without fighting the user's own history.
+    if (!closedNetworkResolved || closedNetwork) return;
     if (amrLoggedIn !== false || view === 'onboarding') return;
     navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
-  }, [amrLoggedIn, view]);
+  }, [amrLoggedIn, closedNetwork, closedNetworkResolved, view]);
   // The one shared workspace context. Any non-null context is a real workspace
   // (personal or team); workspace surfaces gate on B's permission bits, not on
   // workspaceType.
@@ -1857,9 +1875,21 @@ function OnboardingView({
 }) {
   const t = useT();
   const analytics = useAnalytics();
+  const closedNetwork = useClosedNetwork();
   const [step, setStep] = useState(0);
   const [runtime, setRuntime] = useState<'amr' | 'local' | 'byok' | null>(null);
   const [modelSource, setModelSource] = useState<'amr' | 'local' | 'byok'>('amr');
+  // Step 0 is the Open Design Cloud identity gate: one button that opens an
+  // OAuth round-trip. On a closed network it can never complete, so the wizard
+  // opens on the model-source step instead. Written as an effect rather than a
+  // lazy initial value because the mode resolves from the daemon a beat after
+  // mount (see features/closedNetwork.ts), so the correction has to survive
+  // arriving late. `cloudSignInUnavailable` below carries the same reasoning
+  // into the Hosted option, which is that sign-in wearing a different hat.
+  useEffect(() => {
+    if (!closedNetwork) return;
+    setStep((current) => (current === 0 ? 1 : current));
+  }, [closedNetwork]);
   const modelSourceOptionRefs = useRef<
     Record<'amr' | 'local' | 'byok', HTMLButtonElement | null>
   >({ amr: null, local: null, byok: null });
@@ -1979,6 +2009,16 @@ function OnboardingView({
   const availableCliAgents = agents.filter((agent) => agent.available && agent.id !== 'amr');
   const visibleAgents = availableCliAgents.filter((agent) => visibleAgentIds.includes(agent.id));
   const amrSignedIn = amrStatus?.loggedIn === true;
+  // Hosted routes every request through Open Design Cloud, so it needs the same
+  // sign-in the skipped identity gate would have run. A closed-network install
+  // that is not already signed in cannot get one — offering the option (as the
+  // recommended default, no less) would only hand the user a runtime that
+  // fails on first use. An install that IS signed in keeps it.
+  const cloudSignInUnavailable = closedNetwork && !amrSignedIn;
+  useEffect(() => {
+    if (!cloudSignInUnavailable) return;
+    setModelSource((current) => (current === 'amr' ? 'local' : current));
+  }, [cloudSignInUnavailable]);
   const selectedAgent = visibleAgents.find((agent) => agent.id === config.agentId) ?? null;
   const selectedAgentChoice = selectedAgent ? (config.agentModels?.[selectedAgent.id] ?? {}) : {};
   const normalizedSelectedAgentChoice = effectiveAgentModelChoice(selectedAgent, selectedAgentChoice) ?? selectedAgentChoice;
@@ -2422,7 +2462,11 @@ function OnboardingView({
     event: ReactKeyboardEvent<HTMLButtonElement>,
     currentSource: 'amr' | 'local' | 'byok',
   ): void {
-    const sources = ['amr', 'local', 'byok'] as const;
+    // Follows what is actually rendered: roving focus must not land on the
+    // Hosted radio when a closed network has removed it from the group.
+    const sources = (
+      cloudSignInUnavailable ? ['local', 'byok'] : ['amr', 'local', 'byok']
+    ) as ReadonlyArray<'amr' | 'local' | 'byok'>;
     const currentIndex = sources.indexOf(currentSource);
     let nextIndex: number | null = null;
 
@@ -3090,13 +3134,18 @@ function OnboardingView({
               {t('settings.onboardingExecutionTitle')}
             </h1>
             <p className="onboarding-cloud__body">
-              {t('settings.onboardingExecutionBody')}
+              {/* The default copy leads with Hosted, which this step does not
+                  offer once the cloud sign-in is out of reach. */}
+              {cloudSignInUnavailable
+                ? t('settings.onboardingExecutionBodyClosedNetwork')
+                : t('settings.onboardingExecutionBody')}
             </p>
             <div
               className={onboardingSourceStyles.options}
               role="radiogroup"
               aria-label={t('settings.onboardingExecutionTitle')}
             >
+              {cloudSignInUnavailable ? null : (
               <Button
                 ref={(node) => {
                   modelSourceOptionRefs.current.amr = node;
@@ -3129,6 +3178,7 @@ function OnboardingView({
                 </span>
                 <span className={onboardingSourceStyles.radio} aria-hidden="true" />
               </Button>
+              )}
               <Button
                 ref={(node) => {
                   modelSourceOptionRefs.current.local = node;
