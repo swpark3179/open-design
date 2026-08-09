@@ -36,6 +36,10 @@ import {
   type AnalyticsPublisherClass,
   EVENT_SCHEMA_VERSION,
 } from '@open-design/contracts/analytics';
+import {
+  isClosedNetworkCapabilityDisabled,
+  type ClosedNetworkStatus,
+} from '@open-design/contracts';
 import { readAppConfig } from './app-config.js';
 import { readTelemetryEnvironment } from './telemetry-environment.js';
 
@@ -178,7 +182,15 @@ export interface PosthogConfig {
 
 export function readPosthogConfig(
   env: NodeJS.ProcessEnv = process.env,
+  closedNetwork: ClosedNetworkStatus | null = null,
 ): PosthogConfig | null {
+  // Closed-network mode has no reachable ingest host and no appetite for
+  // shipping usage data off a corporate machine. Answering `null` here is the
+  // single kill switch for BOTH PostHog surfaces: the daemon's posthog-node
+  // client degrades to NOOP_SERVICE, and the browser never learns a key/host
+  // from `/api/analytics/config`, so posthog-js autocapture, session replay,
+  // and the consent-bypassing exception beacon all stay dormant.
+  if (isClosedNetworkCapabilityDisabled(closedNetwork, 'telemetry')) return null;
   const key = env.POSTHOG_KEY?.trim();
   if (!key) return null;
   const host = (env.POSTHOG_HOST?.trim() || DEFAULT_HOST).replace(/\/+$/, '');
@@ -186,12 +198,14 @@ export function readPosthogConfig(
 }
 
 // Baseline wire response for GET /api/analytics/config — checks only the
-// env-var gate. The route handler in server.ts further narrows this with
-// the user's telemetry.metrics consent before sending it to the client.
+// env-var gate (and closed-network mode). The route handler in server.ts
+// further narrows this with the user's telemetry.metrics consent before
+// sending it to the client.
 export function readPublicConfigResponse(
   env: NodeJS.ProcessEnv = process.env,
+  closedNetwork: ClosedNetworkStatus | null = null,
 ): AnalyticsConfigResponse {
-  const cfg = readPosthogConfig(env);
+  const cfg = readPosthogConfig(env, closedNetwork);
   const telemetryEnv = cfg?.env ?? readTelemetryEnvironment(env);
   if (!cfg) return { enabled: false, env: telemetryEnv, key: null, host: null };
   return { enabled: true, env: cfg.env, key: cfg.key, host: cfg.host };
@@ -263,9 +277,10 @@ const NOOP_SERVICE: AnalyticsService = {
 export function createAnalyticsService(args: {
   env?: NodeJS.ProcessEnv;
   dataDir: string;
+  closedNetwork?: ClosedNetworkStatus | null;
 }): AnalyticsService {
   const env = args.env ?? process.env;
-  const cfg = readPosthogConfig(env);
+  const cfg = readPosthogConfig(env, args.closedNetwork ?? null);
   if (!cfg) return NOOP_SERVICE;
 
   // flushAt: 1 keeps the daemon-emit-then-respond pattern simple at the cost

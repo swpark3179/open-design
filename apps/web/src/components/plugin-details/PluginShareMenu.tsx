@@ -21,6 +21,7 @@ import { Icon } from '../Icon';
 import { useT } from '../../i18n';
 import { copyToClipboard } from '../../lib/copy-to-clipboard';
 import { derivePluginSourceLinks } from '../../runtime/plugin-source';
+import { useClosedNetworkCapability } from '../../runtime/closed-network';
 import { pluginShareUrl } from '@open-design/contracts';
 
 const PUBLIC_OPEN_DESIGN_MARKETPLACE_ID = 'official';
@@ -110,6 +111,7 @@ function buildMarkdownBadge(record: InstalledPluginRecord, url: string): string 
 
 export function PluginShareMenu({ record, variant = 'default' }: Props) {
   const t = useT();
+  const hideExternalPublish = useClosedNetworkCapability('external-publish');
   const [open, setOpen] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<{
     key: string;
@@ -179,8 +181,13 @@ export function PluginShareMenu({ record, variant = 'default' }: Props) {
 
   // Open-in-tab actions are real anchors so users can right-click,
   // copy the link address, or open in a new tab from browser chrome.
+  //
+  // Closed-network mode keeps the copy actions above (an install command and a
+  // plugin id are useful with or without the internet) and drops every anchor:
+  // the source repo is a github.com URL, and the marketplace/homepage entries
+  // point at open-design.ai public pages.
   const openItems: ShareLinkItem[] = [];
-  if (links.sourceUrl) {
+  if (!hideExternalPublish && links.sourceUrl) {
     openItems.push({
       key: 'source',
       label:
@@ -191,7 +198,7 @@ export function PluginShareMenu({ record, variant = 'default' }: Props) {
       href: links.sourceUrl,
     });
   }
-  if (links.homepageUrl) {
+  if (!hideExternalPublish && links.homepageUrl) {
     openItems.push({
       key: 'homepage',
       label: t('plugins.actions.openHomepage'),
@@ -199,14 +206,16 @@ export function PluginShareMenu({ record, variant = 'default' }: Props) {
       href: links.homepageUrl,
     });
   }
-  openItems.push({
-    key: 'marketplace',
-    label: t('plugins.actions.openMarketplace'),
-    icon: 'eye',
-    // Prefer the public open-design.ai detail page; fall back to the in-app
-    // /marketplace route only for local/github installs with no public page.
-    href: publicShareUrl ?? buildPluginMarketplacePath(record),
-  });
+  if (!hideExternalPublish) {
+    openItems.push({
+      key: 'marketplace',
+      label: t('plugins.actions.openMarketplace'),
+      icon: 'eye',
+      // Prefer the public open-design.ai detail page; fall back to the in-app
+      // /marketplace route only for local/github installs with no public page.
+      href: publicShareUrl ?? buildPluginMarketplacePath(record),
+    });
+  }
 
   const triggerClass =
     variant === 'inline'

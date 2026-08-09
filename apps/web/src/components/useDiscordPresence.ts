@@ -74,7 +74,14 @@ export function formatDiscordPresenceCount(count: number): string {
   return `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k`;
 }
 
-export function useDiscordPresence(): CachedPresence | null {
+/**
+ * `enabled: false` (closed-network mode hides the Discord row) skips the
+ * request entirely — there is no online-count badge to fill.
+ */
+export function useDiscordPresence(
+  options: { enabled?: boolean } = {},
+): CachedPresence | null {
+  const enabled = options.enabled ?? true;
   const [presence, setPresence] = useState<CachedPresence | null>(() => {
     if (memoryCache) return memoryCache;
     const persisted = readPersistedCache();
@@ -83,6 +90,7 @@ export function useDiscordPresence(): CachedPresence | null {
   });
 
   useEffect(() => {
+    if (!enabled) return;
     const now = Date.now();
     const cached = memoryCache ?? readPersistedCache();
     if (cached && now - cached.ts < CACHE_TTL_MS) {
@@ -118,7 +126,7 @@ export function useDiscordPresence(): CachedPresence | null {
     return () => {
       active = false;
     };
-  }, []);
+  }, [enabled]);
 
   return presence;
 }

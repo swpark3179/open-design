@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // @ts-nocheck
-import { readFileSync, writeFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, dirname } from 'node:path';
+import { closedNetworkFlagPathFor } from './closed-network.js';
 import { runDaemonCliStartup, startDaemonRuntime } from './daemon-startup.js';
 import { runLiveArtifactsMcpServer } from './mcp-live-artifacts-server.js';
 import { runArtifactsCli } from './artifacts-cli.js';
@@ -214,6 +215,8 @@ const LIBRARY_ASSET_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
 const DIAGNOSTICS_STRING_FLAGS = new Set(['daemon-url', 'output']);
 const DIAGNOSTICS_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
 const CONFIG_STRING_FLAGS = new Set(['daemon-url', 'value', 'value-json']);
+const CLOSED_NETWORK_STRING_FLAGS = new Set(['daemon-url', 'location']);
+const CLOSED_NETWORK_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
 const CONFIG_BOOLEAN_FLAGS = new Set(['help', 'h', 'json']);
 const AMR_STRING_FLAGS = new Set(['daemon-url']);
 const AMR_BOOLEAN_FLAGS = new Set(['help', 'h', 'json', 'refresh']);
@@ -406,6 +409,7 @@ const SUBCOMMAND_MAP = {
   'whats-new': runWhatsNew,
   doctor: runDoctor,
   config: runConfig,
+  'closed-network': runClosedNetwork,
   library: runLibrary,
   figma: runFigma,
 };
@@ -9387,6 +9391,110 @@ diagnostics produces.
     return;
   }
   console.log(`Wrote diagnostics bundle to ${targetPath} (${buf.length} bytes).`);
+}
+
+/**
+ * `od closed-network` — inspect and provision closed-network mode ("폐쇄망 모드").
+ *
+ * `status` reads the daemon's boot-time decision, which is the same answer the
+ * web UI hides its outbound surfaces on. `enable`/`disable` only write (or
+ * remove) the marker file; the running daemon resolved the mode once at startup
+ * and does not re-read it, so both print a restart reminder rather than
+ * pretending the change took effect.
+ */
+async function runClosedNetwork(args) {
+  if (args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h')) {
+    console.log(`Usage:
+  od closed-network status              Show whether closed-network mode is on.
+  od closed-network enable              Write the flag file into a project location.
+  od closed-network disable             Remove the flag file from a project location.
+
+Options:
+  --location <path>    Project location to write the flag into. Defaults to the
+                       daemon's default project location.
+  --daemon-url <url>   Open Design daemon HTTP base.
+  --json               Emit raw JSON.`);
+    process.exit(args.length === 0 ? 2 : 0);
+  }
+  const sub = args[0];
+  const rest = args.slice(1);
+  const flags = parseFlags(rest, {
+    string: CLOSED_NETWORK_STRING_FLAGS,
+    boolean: CLOSED_NETWORK_BOOLEAN_FLAGS,
+  });
+  const base = (await cliDaemonUrl(flags)).replace(/\/$/, '');
+
+  /** Project location the flag file should be written to / removed from. */
+  const resolveTargetLocation = async () => {
+    if (typeof flags.location === 'string' && flags.location.trim()) {
+      return flags.location.trim();
+    }
+    const resp = await fetch(`${base}/api/project-locations`);
+    if (!resp.ok) return structuredHttpFailure(resp);
+    const locations = (await resp.json())?.locations ?? [];
+    if (locations.length === 0) {
+      console.error('No project location is configured. Pass --location <path>.');
+      process.exit(1);
+    }
+    return locations[0].path;
+  };
+
+  switch (sub) {
+    case 'status': {
+      const resp = await fetch(`${base}/api/closed-network`);
+      if (!resp.ok) return structuredHttpFailure(resp);
+      const status = await resp.json();
+      if (flags.json) {
+        process.stdout.write(JSON.stringify(status, null, 2) + '\n');
+        return;
+      }
+      console.log(`closed network: ${status.enabled ? 'on' : 'off'}`);
+      if (!status.enabled) return;
+      console.log(`source: ${status.source ?? 'unknown'}`);
+      if (status.flagPath) console.log(`flag file: ${status.flagPath}`);
+      console.log(`disabled: ${(status.disabled ?? []).join(', ') || '(none)'}`);
+      return;
+    }
+    case 'enable': {
+      const location = await resolveTargetLocation();
+      const flagPath = closedNetworkFlagPathFor(location);
+      mkdirSync(dirname(flagPath), { recursive: true });
+      writeFileSync(
+        flagPath,
+        JSON.stringify({ schemaVersion: 1, closedNetwork: true }, null, 2) + '\n',
+        'utf8',
+      );
+      if (flags.json) {
+        process.stdout.write(JSON.stringify({ enabled: true, flagPath }, null, 2) + '\n');
+      } else {
+        console.log(`wrote ${flagPath}`);
+        console.log('Restart the app (or the daemon) for closed-network mode to take effect.');
+      }
+      return;
+    }
+    case 'disable': {
+      const location = await resolveTargetLocation();
+      const flagPath = closedNetworkFlagPathFor(location);
+      let removed = true;
+      try {
+        rmSync(flagPath);
+      } catch {
+        removed = false;
+      }
+      if (flags.json) {
+        process.stdout.write(JSON.stringify({ enabled: false, flagPath, removed }, null, 2) + '\n');
+      } else {
+        console.log(removed ? `removed ${flagPath}` : `no flag file at ${flagPath}`);
+        if (removed) {
+          console.log('Restart the app (or the daemon) for the change to take effect.');
+        }
+      }
+      return;
+    }
+    default:
+      console.error(`Unknown subcommand: ${sub}`);
+      process.exit(2);
+  }
 }
 
 async function runVersion(args) {

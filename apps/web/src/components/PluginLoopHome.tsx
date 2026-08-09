@@ -16,6 +16,7 @@ import {
   resolvePluginQueryFallback,
 } from '../state/projects';
 import { useI18n } from '../i18n';
+import { useClosedNetworkCapability } from '../runtime/closed-network';
 import { localizePluginDescription, localizePluginTitle } from './plugins-home/localization';
 import type { PluginUseAction } from './plugins-home/useActions';
 import { Icon } from './Icon';
@@ -412,7 +413,12 @@ function CardAvatar({ name, avatarUrl }: CardAvatarProps) {
   // silent so a renamed/missing github profile doesn't show a
   // broken-image icon in the grid.
   const [broken, setBroken] = useState(false);
-  if (avatarUrl && !broken) {
+  // Every avatar is a `github.com/<owner>.png` request, one per card. Rather
+  // than fire a gridful of them at a host the network blocks and wait for each
+  // to fail into `broken`, closed-network mode goes straight to the initials
+  // fallback below.
+  const hideExternalContent = useClosedNetworkCapability('home-external-content');
+  if (avatarUrl && !broken && !hideExternalContent) {
     return (
       <img
         className="plugin-loop-home__card-avatar"

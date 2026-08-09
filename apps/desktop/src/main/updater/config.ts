@@ -10,6 +10,8 @@ import {
 } from "@open-design/sidecar-proto";
 import { releaseChannelFromVersion } from "@open-design/release";
 
+import { isClosedNetworkEnv } from "../closed-network.js";
+
 /**
  * @module updater-config
  *
@@ -164,7 +166,16 @@ export function resolveDesktopUpdaterConfig(input: DesktopUpdaterConfigInput): D
   const env = input.env ?? process.env;
   const mode = normalizeMode(env[DESKTOP_UPDATE_ENV.MODE], input.mode ?? DESKTOP_UPDATE_MODES.PACKAGE_LAUNCHER);
   const defaultEnabled = input.source === SIDECAR_SOURCES.PACKAGED;
-  const enabled = isTruthyEnv(env[DESKTOP_UPDATE_ENV.ENABLED]) ?? defaultEnabled;
+  // Closed-network mode wins over every other updater switch, including an
+  // explicit OD_UPDATE_ENABLED=1. The feed lives on releases.open-design.ai, and
+  // a 폐쇄망 deployment installs from an internal channel — leaving the poll armed
+  // buys nothing but a 5-second-then-every-15-minute timeout loop and an
+  // "update available" prompt that can never complete. `autoCheck` and
+  // `autoDownload` both fall out of `enabled` below, so this one line stops the
+  // scheduler, the poll, and the background download together.
+  const enabled = isClosedNetworkEnv(env)
+    ? false
+    : isTruthyEnv(env[DESKTOP_UPDATE_ENV.ENABLED]) ?? defaultEnabled;
   const runtimeBase = resolve(input.runtimeBase == null ? process.cwd() : input.runtimeBase);
   const downloadRoot = normalizeDownloadRoot(
     env[DESKTOP_UPDATE_ENV.DOWNLOAD_ROOT] ??

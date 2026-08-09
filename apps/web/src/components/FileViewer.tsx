@@ -80,6 +80,7 @@ import {
   publicFilePublishFailureKey,
   type PublicFilePublishFailureKey,
 } from '../collab/public-file-publish';
+import { useClosedNetworkCapability } from '../runtime/closed-network';
 import { moveWorkspaceProject } from '../state/projects';
 import { MoveToTeamConfirmDialog, moveConfirmSkipped } from './MoveToTeamConfirmDialog';
 import type { Dict, Locale } from '../i18n/types';
@@ -6335,10 +6336,17 @@ function ReactComponentViewer({
   // Why a publish/unpublish attempt failed, as a message key. `publishLinkFeedback`
   // only renders inside the already-published branch, so a failed FIRST publish
   // used to leave no trace on screen at all — the button simply returned to idle.
+  // Closed-network mode hides every path that pushes this artifact to a public
+  // host: the public link, the Vercel/Cloudflare deploy modal, and the social
+  // share grid that hangs off it.
+  const hideExternalPublish = useClosedNetworkCapability('external-publish');
   const [publishFailureKey, setPublishFailureKey] = useState<PublicFilePublishFailureKey | null>(null);
   const filePublished = publishedFileUrl.length > 0;
-  // Public links need a signed-in workspace (any type); see canPublishPublicFile.
-  const canPublishPublic = canPublishPublicFile(workspaceContext);
+  // Public links need a signed-in workspace (any type), and are withheld
+  // entirely in closed-network mode; see canPublishPublicFile.
+  const canPublishPublic = canPublishPublicFile(workspaceContext, {
+    closedNetwork: hideExternalPublish,
+  });
   const publicFileRequestSeqRef = useRef(0);
   const publicFileIdentityRef = useRef({ projectId, fileName: file.name });
   const shareRef = useRef<HTMLDivElement | null>(null);
@@ -7665,10 +7673,17 @@ function HtmlViewer({
   // Why a publish/unpublish attempt failed, as a message key. `publishLinkFeedback`
   // only renders inside the already-published branch, so a failed FIRST publish
   // used to leave no trace on screen at all — the button simply returned to idle.
+  // Closed-network mode hides every path that pushes this artifact to a public
+  // host: the public link, the Vercel/Cloudflare deploy modal, and the social
+  // share grid that hangs off it.
+  const hideExternalPublish = useClosedNetworkCapability('external-publish');
   const [publishFailureKey, setPublishFailureKey] = useState<PublicFilePublishFailureKey | null>(null);
   const filePublished = publishedFileUrl.length > 0;
-  // Public links need a signed-in workspace (any type); see canPublishPublicFile.
-  const canPublishPublic = canPublishPublicFile(workspaceContext);
+  // Public links need a signed-in workspace (any type), and are withheld
+  // entirely in closed-network mode; see canPublishPublicFile.
+  const canPublishPublic = canPublishPublicFile(workspaceContext, {
+    closedNetwork: hideExternalPublish,
+  });
   const publicFileRequestSeqRef = useRef(0);
   const publicFileIdentityRef = useRef({ projectId, fileName: file.name });
   // False when closed; otherwise records which entry opened the modal so the
@@ -13814,7 +13829,10 @@ function HtmlViewer({
     : '';
   useEffect(() => {
     setProjectSocialShare(null);
-    if (!projectSocialShareRequest) return;
+    // Closed-network mode hides the share surfaces and the daemon answers this
+    // route 403, so the request would only ever resolve to the null it starts
+    // at. Skipping it keeps the console clean.
+    if (!projectSocialShareRequest || hideExternalPublish) return;
     let cancelled = false;
     void createSocialSharePayload(projectSocialShareRequest)
       .then((payload) => {
@@ -13827,7 +13845,7 @@ function HtmlViewer({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectSocialShareKey]);
+  }, [hideExternalPublish, projectSocialShareKey]);
   const activeProjectSocialShare = projectSocialShare ?? projectSocialShareFallback;
   const socialShareMenuLabel =
     activeProjectSocialShare
@@ -15172,6 +15190,13 @@ function HtmlViewer({
                       <span>{t('fileViewer.exportMd')}</span>
                     </button>
                   ) : null}
+                  {/* Everything between here and the "Save" divider publishes
+                      this artifact to a public host — a deploy provider, a
+                      share page, or a social network. Closed-network mode drops
+                      the whole block and leaves the local exports above and the
+                      template save below untouched. */}
+                  {hideExternalPublish ? null : (
+                  <>
                   <div className="share-menu-divider" />
                   <div className="share-menu-section-label" role="presentation">
                     {t('fileViewer.shareMenuPublishOnline')}
@@ -15283,6 +15308,8 @@ function HtmlViewer({
                     <span className="share-menu-icon"><RemixIcon name="share-circle-line" size={15} /></span>
                     <span>{socialShareMenuLabel}</span>
                   </button>
+                  </>
+                  )}
                   <div className="share-menu-divider" />
                   <div className="share-menu-section-label" role="presentation">
                     {t('fileViewer.shareMenuSave')}
@@ -16123,7 +16150,9 @@ function HtmlViewer({
         </div>,
         document.body,
       ) : null}
-      {workspaceActive && deployModalOpen && typeof document !== 'undefined' ? createPortal(
+      {/* Its openers are already hidden above; this keeps the modal itself
+          unreachable even from a stale state flag. */}
+      {workspaceActive && deployModalOpen && !hideExternalPublish && typeof document !== 'undefined' ? createPortal(
         <div
           className="modal-backdrop viewer-modal-backdrop deploy-flow-backdrop"
           role="presentation"

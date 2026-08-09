@@ -1,4 +1,9 @@
-import type { WhatsNewContent, WhatsNewLocaleContent } from '@open-design/contracts';
+import {
+  isClosedNetworkCapabilityDisabled,
+  type ClosedNetworkStatus,
+  type WhatsNewContent,
+  type WhatsNewLocaleContent,
+} from '@open-design/contracts';
 
 // Fetches the post-update "what's new" highlight from a single hosted document
 // on a dedicated R2 bucket. Operators edit that one file after a release; the
@@ -20,6 +25,12 @@ export interface WhatsNewServiceOptions {
   fetchImpl?: typeof fetch;
   now?: () => number;
   env?: NodeJS.ProcessEnv;
+  /**
+   * Closed-network mode. When it disables `home-external-content` the hosted
+   * highlights document is treated as absent, reusing the same "no card, no
+   * network" branch development builds already take.
+   */
+  closedNetwork?: ClosedNetworkStatus | null;
 }
 
 export interface WhatsNewService {
@@ -122,15 +133,21 @@ export function createWhatsNewService({
   fetchImpl = fetch,
   now = () => Date.now(),
   env = process.env,
+  closedNetwork = null,
 }: WhatsNewServiceOptions = {}): WhatsNewService {
+  const externalContentBlocked = isClosedNetworkCapabilityDisabled(
+    closedNetwork,
+    'home-external-content',
+  );
   let cache: { key: string; result: WhatsNewReadResult } | null = null;
   let inflight: Promise<WhatsNewReadResult> | null = null;
 
   async function readWhatsNew(channel: string): Promise<WhatsNewReadResult> {
-    const sourceUrl = whatsNewSourceUrl(env, channel);
+    const sourceUrl = externalContentBlocked ? null : whatsNewSourceUrl(env, channel);
     if (sourceUrl == null) {
-      // Development/CI builds (no release channel, no override) never show the
-      // card and never reach out to the network.
+      // Development/CI builds (no release channel, no override) and
+      // closed-network deployments never show the card and never reach out to
+      // the network.
       return { id: null, content: null, fetchedAt: now(), stale: false };
     }
     const cacheKey = sourceUrl;

@@ -7,6 +7,7 @@ This file is the single source of truth for agents entering this repository. Rea
 - Product and onboarding: `README.md`, `docs/i18n/README.zh-CN.md`, `QUICKSTART.md`.
 - Contribution and environment: `CONTRIBUTING.md`, `docs/i18n/CONTRIBUTING.zh-CN.md`.
 - Architecture and protocols: `docs/architecture.md`, `docs/skills-protocol.md`, `docs/agent-adapters.md`, `docs/modes.md`.
+- Closed network mode (폐쇄망): `docs/closed-network.md` — required before changing any surface that reaches GitHub, a social network, a marketplace registry, PostHog, or the update feed.
 - Historical product baseline: `docs/spec.md`, `docs/roadmap.md` (both explicitly archived; do not treat their dated decisions as current behavior).
 - References and current plans: `docs/references.md`, `docs/code-review-guidelines.md`, `specs/current/maintainability-roadmap.md`, `specs/current/ci.md` (CI scope confidence methodology — required before changing confidence or guard fields in `scripts/scopes.ts`).
 - Directory-level agent guidance: `.github/AGENTS.md`, `apps/AGENTS.md`, `packages/AGENTS.md`, `tools/AGENTS.md`, `e2e/AGENTS.md`.
@@ -119,6 +120,11 @@ Sanctioned exceptions:
 - Agent/project-cwd skill staging aliases are not daemon data roots.
 - Manifest metadata keys and CSS identifiers are semantic namespaces, not
   filesystem path conventions.
+- `<project-location>/.open-design/closed-network.json` is a user-provisioned
+  policy marker read at startup, not daemon data. It lives at the top level of a
+  configured project location (which the daemon already forbids from overlapping
+  its data root) and is never written by the daemon. `OD_CLOSED_NETWORK` is its
+  env override. See `docs/closed-network.md`.
 
 Known escape candidates that must not be reused:
 

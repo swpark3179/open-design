@@ -1,5 +1,9 @@
-import type { Express, Request } from 'express';
+import type { Express, Request, Response } from 'express';
 import type * as BetterSqlite3 from 'better-sqlite3';
+import {
+  isClosedNetworkCapabilityDisabled,
+  type ClosedNetworkStatus,
+} from '@open-design/contracts';
 
 type MarketplaceTrust = 'trusted' | 'restricted' | 'official';
 
@@ -35,10 +39,28 @@ export interface RegisterPluginMarketplaceRoutesDeps {
   bundledMarketplaceEntries: unknown;
   createMarketplaceFetcher: (seedId: string | null, bundled: unknown) => MarketplaceFetcher;
   marketplaceRegistryIdFromUrl: (url: string) => string | null;
+  /**
+   * Closed-network mode. Reads of already-stored marketplaces stay available —
+   * the local manifest is still valid data — but adding one or refreshing one
+   * fetches from raw.githubusercontent.com and is refused.
+   */
+  closedNetwork?: ClosedNetworkStatus | null;
 }
 
 export function registerPluginMarketplaceRoutes(app: Express, deps: RegisterPluginMarketplaceRoutesDeps): void {
   const { db, bundledMarketplaceEntries, createMarketplaceFetcher, marketplaceRegistryIdFromUrl } = deps;
+  const registryFetchBlocked = isClosedNetworkCapabilityDisabled(
+    deps.closedNetwork ?? null,
+    'plugin-marketplace',
+  );
+  const sendRegistryFetchBlocked = (res: Response): Response =>
+    res.status(503).json({
+      error: {
+        code: 'closed-network-blocked',
+        message: 'marketplace registry access is unavailable in closed-network mode',
+        data: { errors: [] },
+      },
+    });
 
   const readBody = (req: Request): Record<string, unknown> =>
     req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
@@ -52,6 +74,7 @@ export function registerPluginMarketplaceRoutes(app: Express, deps: RegisterPlug
     }
   });
   app.post('/api/marketplaces', async (req, res) => {
+    if (registryFetchBlocked) return sendRegistryFetchBlocked(res);
     try {
       const body = readBody(req);
       const url = typeof body.url === 'string' ? body.url : '';
@@ -86,6 +109,7 @@ export function registerPluginMarketplaceRoutes(app: Express, deps: RegisterPlug
     } catch (err) { res.status(500).json({ error: String(err) }); }
   });
   app.post('/api/marketplaces/:id/refresh', async (req, res) => {
+    if (registryFetchBlocked) return sendRegistryFetchBlocked(res);
     try {
       const { getMarketplace, refreshMarketplace } = await import('../../plugins/marketplaces.js');
       const row = getMarketplace(db, req.params.id) as MarketplaceRow | null;

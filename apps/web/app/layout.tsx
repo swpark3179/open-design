@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { I18nProvider } from '../src/i18n';
 import { AnalyticsProvider } from '../src/analytics/provider';
+import { ClosedNetworkProvider } from '../src/runtime/closed-network';
 import '@excalidraw/excalidraw/index.css';
 import '../src/index.css';
 import '../src/styles/home/index.css';
@@ -42,7 +43,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body suppressHydrationWarning>
         <I18nProvider>
-          <AnalyticsProvider>{children}</AnalyticsProvider>
+          <ClosedNetworkProvider>
+            <AnalyticsProvider>{children}</AnalyticsProvider>
+          </ClosedNetworkProvider>
         </I18nProvider>
       </body>
     </html>

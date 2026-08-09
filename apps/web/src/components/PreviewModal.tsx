@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../i18n';
+import { useClosedNetworkCapability } from '../runtime/closed-network';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 import {
   exportAsHtml,
@@ -465,8 +466,12 @@ export function PreviewModal({
   const previewShareUrlDisplay = previewShareUrl
     .replace(/^https?:\/\//, '')
     .replace(/\/$/, '');
+  // This popover keeps its own copy of the social targets rather than using
+  // SocialShareGrid, so it needs its own closed-network gate. An empty list
+  // collapses the whole "share to social" section below.
+  const hideSocialShare = useClosedNetworkCapability('social-share');
   const socialShareTargets = useMemo(
-    () => SOCIAL_SHARE_PLATFORMS.map((item) => ({
+    () => (hideSocialShare ? [] : SOCIAL_SHARE_PLATFORMS).map((item) => ({
       ...item,
       href: item.mode === 'intent' && previewShareUrl
         ? buildSocialShareUrl(item.platform, {
@@ -476,7 +481,7 @@ export function PreviewModal({
         })
         : item.entryUrl ?? '',
     })),
-    [previewShareText, previewShareUrl],
+    [hideSocialShare, previewShareText, previewShareUrl],
   );
 
   // Always fit the design viewport to the full stage width — scaling up
@@ -695,6 +700,7 @@ export function PreviewModal({
                       </div>
                       {previewShareUrl ? (
                         <>
+                          {socialShareTargets.length === 0 ? null : (
                           <section className="template-share-section">
                             <div className="template-share-section__label">
                               {t('preview.shareSocialGroup')}
@@ -747,6 +753,7 @@ export function PreviewModal({
                               ))}
                             </div>
                           </section>
+                          )}
                           <section className="template-share-section">
                             <div className="template-share-section__label">
                               {t('preview.shareCopyGroup')}

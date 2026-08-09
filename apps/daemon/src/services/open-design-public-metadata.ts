@@ -1,3 +1,8 @@
+import {
+  isClosedNetworkCapabilityDisabled,
+  type ClosedNetworkStatus,
+} from '@open-design/contracts';
+
 export interface OpenDesignGithubRepoStats {
   stargazersCount: number;
   fetchedAt: number;
@@ -64,7 +69,27 @@ interface DiscordInvitePayload {
 export interface OpenDesignPublicMetadataServiceOptions {
   fetchImpl?: typeof fetch;
   now?: () => number;
+  /**
+   * Closed-network mode. When it disables `home-external-content`, every reader
+   * below answers from an empty, permanently-stale snapshot without touching
+   * `fetchImpl` — api.github.com and discord.com are exactly the hosts a 폐쇄망
+   * perimeter blocks, and a blocked request would only spend the timeout before
+   * the caller fell back anyway.
+   */
+  closedNetwork?: ClosedNetworkStatus | null;
 }
+
+const CLOSED_NETWORK_GITHUB_REPO_STATS: OpenDesignGithubRepoStats = {
+  stargazersCount: 0,
+  fetchedAt: 0,
+  stale: true,
+};
+const CLOSED_NETWORK_DISCORD_PRESENCE: OpenDesignDiscordPresence = {
+  onlineCount: 0,
+  memberCount: 0,
+  fetchedAt: 0,
+  stale: true,
+};
 
 const OPEN_DESIGN_GITHUB_REPO_API = 'https://api.github.com/repos/nexu-io/open-design';
 const OPEN_DESIGN_GITHUB_RELEASE_LATEST_API = 'https://api.github.com/repos/nexu-io/open-design/releases/latest';
@@ -96,7 +121,12 @@ function withFreshness<T extends { fetchedAt: number }>(
 export function createOpenDesignPublicMetadataService({
   fetchImpl = fetch,
   now = () => Date.now(),
+  closedNetwork = null,
 }: OpenDesignPublicMetadataServiceOptions = {}): OpenDesignPublicMetadataService {
+  const externalContentBlocked = isClosedNetworkCapabilityDisabled(
+    closedNetwork,
+    'home-external-content',
+  );
   let githubRepoCache: CachedGithubRepoStats | null = null;
   let githubRepoInflight: Promise<OpenDesignGithubRepoStats> | null = null;
   let githubLatestReleaseCache: CachedGithubLatestReleaseInfo | null = null;
@@ -105,6 +135,7 @@ export function createOpenDesignPublicMetadataService({
   let discordPresenceInflight: Promise<OpenDesignDiscordPresence> | null = null;
 
   async function readGithubRepoStats(): Promise<OpenDesignGithubRepoStats> {
+    if (externalContentBlocked) return CLOSED_NETWORK_GITHUB_REPO_STATS;
     const currentTime = now();
     if (
       githubRepoCache &&
@@ -149,6 +180,13 @@ export function createOpenDesignPublicMetadataService({
   }
 
   async function readLatestReleaseInfo(): Promise<OpenDesignGithubLatestReleaseInfo> {
+    // Unlike the two counters above there is no honest empty value here: a blank
+    // `htmlUrl` would render as a link to nowhere. Refuse instead, and let the
+    // route's existing error path answer — callers already treat that as "no
+    // release info" rather than surfacing it.
+    if (externalContentBlocked) {
+      throw new Error('closed-network mode: GitHub release metadata is unavailable');
+    }
     const currentTime = now();
     if (
       githubLatestReleaseCache &&
@@ -194,6 +232,7 @@ export function createOpenDesignPublicMetadataService({
   }
 
   async function readDiscordPresence(): Promise<OpenDesignDiscordPresence> {
+    if (externalContentBlocked) return CLOSED_NETWORK_DISCORD_PRESENCE;
     const currentTime = now();
     if (
       discordPresenceCache &&

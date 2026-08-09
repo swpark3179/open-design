@@ -1,4 +1,5 @@
 import type { Express } from 'express';
+import type { ClosedNetworkStatus } from '@open-design/contracts';
 import type { SkillInfo } from './skills.js';
 import type { DesignSystemSummary } from './design-systems/index.js';
 import type { RoutineRoutesService } from './routes/routine.js';
@@ -232,6 +233,13 @@ export interface ServerContext {
   lifecycle: {
     isDaemonShuttingDown: () => boolean;
   };
+  /**
+   * Closed-network mode, resolved once at startup (see closed-network.ts).
+   * Routes and services that reach a host a 폐쇄망 deployment cannot talk to
+   * check this before egressing — and degrade to an empty/cached answer rather
+   * than failing, so the existing client fallbacks keep working.
+   */
+  closedNetwork: ClosedNetworkStatus;
 }
 
 export type RouteDeps<K extends keyof ServerContext> = Pick<ServerContext, K>;

@@ -97,7 +97,13 @@ export function formatStars(count: number): string {
 
 export const GITHUB_REPO_URL = REPO;
 
-export function useGithubStars(): number | null {
+/**
+ * `enabled: false` (closed-network mode hides the badge) skips the request
+ * entirely rather than relying on the daemon's empty answer — there is no
+ * badge to fill, so the round-trip would be pure waste.
+ */
+export function useGithubStars(options: { enabled?: boolean } = {}): number | null {
+  const enabled = options.enabled ?? true;
   const [count, setCount] = useState<number | null>(() => {
     if (memoryCache) return memoryCache.count;
     const persisted = readPersistedCache();
@@ -106,6 +112,7 @@ export function useGithubStars(): number | null {
   });
 
   useEffect(() => {
+    if (!enabled) return;
     const now = Date.now();
     const cached = memoryCache ?? readPersistedCache();
     if (cached && now - cached.ts < CACHE_TTL_MS) {
@@ -152,7 +159,7 @@ export function useGithubStars(): number | null {
       }
     })();
     return () => ctrl.abort();
-  }, []);
+  }, [enabled]);
 
   return count;
 }

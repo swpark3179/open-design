@@ -25,6 +25,7 @@ import {
 import { createSocialSharePayload } from '../providers/registry';
 import type { AppConfig } from '../types';
 import { formatDiscordPresenceCount, useDiscordPresence } from './useDiscordPresence';
+import { useClosedNetworkCapability } from '../runtime/closed-network';
 import { Icon } from './Icon';
 import { SocialShareGrid } from './SocialShareGrid';
 import { enterpriseUrl } from './enterpriseUrl';
@@ -80,7 +81,13 @@ export function EntrySettingsMenu({
   const analytics = useAnalytics();
   const t = useT();
   const { locale, setLocale } = useI18n();
-  const discordPresence = useDiscordPresence();
+  // Closed-network mode leaves this popover with just the language picker and
+  // the "open full Settings" action — everything between them is an outbound
+  // link (Teams on open-design.ai, Discord, X, Threads, YouTube, Instagram,
+  // LinkedIn, Xiaohongshu) or the social share grid.
+  const hideCommunityLinks = useClosedNetworkCapability('community-links');
+  const hideSocialShare = useClosedNetworkCapability('social-share');
+  const discordPresence = useDiscordPresence({ enabled: !hideCommunityLinks });
   const [open, setOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const [openDesignShare, setOpenDesignShare] = useState<SocialShareResponse | null>(null);
@@ -155,7 +162,10 @@ export function EntrySettingsMenu({
   }, [open, analytics.track, pageName]);
 
   useEffect(() => {
-    if (!open) return;
+    // The grid is not rendered in closed-network mode, and `POST
+    // /api/social-share` answers 403 there — skip the request rather than
+    // opening the popover onto a guaranteed failure.
+    if (!open || hideSocialShare) return;
     let cancelled = false;
     setOpenDesignShare(null);
     void createSocialSharePayload(openDesignShareRequest)
@@ -168,7 +178,7 @@ export function EntrySettingsMenu({
     return () => {
       cancelled = true;
     };
-  }, [open, openDesignShareRequest]);
+  }, [hideSocialShare, open, openDesignShareRequest]);
 
   return (
     <div className="entry-settings-menu" ref={wrapRef}>
@@ -275,28 +285,34 @@ export function EntrySettingsMenu({
             </div>
           </section>
 
-          <section className="entry-settings-menu__section">
-            <div className="entry-settings-menu__section-title">
-              <Icon name="external-link" size={14} />
-              <span>{t('socialShare.openDesignSection')}</span>
-            </div>
-            <SocialShareGrid
-              share={openDesignShare ?? fallbackOpenDesignShare}
-              className="entry-settings-social-share"
-              onShare={(platform) => {
-                trackSettingsPopoverClick(analytics.track, {
-                  page_name: pageName,
-                  area: 'settings_popover',
-                  element: 'share_channel',
-                  channel: platform,
-                });
-              }}
-              onAfterShare={() => setOpen(false)}
-            />
-          </section>
+          {hideSocialShare ? null : (
+            <section className="entry-settings-menu__section">
+              <div className="entry-settings-menu__section-title">
+                <Icon name="external-link" size={14} />
+                <span>{t('socialShare.openDesignSection')}</span>
+              </div>
+              <SocialShareGrid
+                share={openDesignShare ?? fallbackOpenDesignShare}
+                className="entry-settings-social-share"
+                onShare={(platform) => {
+                  trackSettingsPopoverClick(analytics.track, {
+                    page_name: pageName,
+                    area: 'settings_popover',
+                    element: 'share_channel',
+                    channel: platform,
+                  });
+                }}
+                onAfterShare={() => setOpen(false)}
+              />
+            </section>
+          )}
 
-          <div className="entry-settings-menu__divider" aria-hidden />
+          {hideSocialShare && hideCommunityLinks ? null : (
+            <div className="entry-settings-menu__divider" aria-hidden />
+          )}
 
+          {hideCommunityLinks ? null : (
+          <>
           <a
             className="entry-settings-menu__item"
             href={enterpriseUrl(locale)}
@@ -488,6 +504,8 @@ export function EntrySettingsMenu({
             <span>{t('entry.followXiaohongshuLabel')}</span>
             <Icon name="external-link" size={12} className="entry-settings-menu__item-end" />
           </a>
+          </>
+          )}
 
           <div className="entry-settings-menu__divider" aria-hidden />
 

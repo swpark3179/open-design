@@ -21,6 +21,7 @@ import {
 } from '../analytics/events';
 import { Icon } from './Icon';
 import { useT } from '../i18n';
+import { useClosedNetworkCapability } from '../runtime/closed-network';
 
 const REPO = 'https://github.com/nexu-io/open-design';
 const ISSUES_URL = `${REPO}/issues/new`;
@@ -35,6 +36,7 @@ const ext = { target: '_blank', rel: 'noreferrer noopener' } as const;
 export function EntryHelpMenu() {
   const t = useT();
   const analytics = useAnalytics();
+  const hidden = useClosedNetworkCapability('community-links');
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -65,6 +67,12 @@ export function EntryHelpMenu() {
       area: 'help_resources_popover',
     });
   }, [open, analytics.track]);
+
+  // Every destination in this popover is github.com, x.com, or discord.gg, so a
+  // closed-network deployment drops the trigger rather than leaving a Help
+  // button whose every item dead-ends. Returned after the hooks so hook order
+  // stays stable.
+  if (hidden) return null;
 
   return (
     <div className="entry-help-menu" ref={wrapRef}>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { SocialSharePlatform, SocialShareResponse } from '@open-design/contracts';
 import { useT } from '../i18n';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
+import { useClosedNetworkCapability } from '../runtime/closed-network';
 import { RemixIcon } from './RemixIcon';
 
 const PLATFORM_ICON: Record<SocialSharePlatform, string> = {
@@ -53,6 +54,10 @@ interface Props {
 
 export function SocialShareGrid({ share, className, onShare, onAfterShare }: Props) {
   const t = useT();
+  // Backstop for every mount site. Callers already skip their whole share
+  // section in closed-network mode; this makes a missed one impossible rather
+  // than merely unlikely, since a rendered tile links straight to x.com.
+  const hidden = useClosedNetworkCapability('social-share');
   const [feedbackPlatform, setFeedbackPlatform] = useState<SocialSharePlatform | null>(null);
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -89,6 +94,11 @@ export function SocialShareGrid({ share, className, onShare, onAfterShare }: Pro
     }
     onAfterShare?.();
   };
+
+  // Rendered after the hooks so the early return cannot change hook order. The
+  // grid element itself is dropped, not just its tiles, so callers that forgot
+  // to skip their section do not end up with an empty box and its margins.
+  if (hidden) return null;
 
   return (
     <div className={`social-share-grid${className ? ` ${className}` : ''}`}>

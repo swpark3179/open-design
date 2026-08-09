@@ -10,6 +10,7 @@ import {
   parseLauncherDelegatedArgs,
   parseLauncherHandoffResumeArgs,
 } from "@open-design/launcher-proto";
+import { CLOSED_NETWORK_ENV } from "@open-design/contracts";
 import {
   bootstrapSidecarRuntime,
   createSidecarLaunchEnv,
@@ -60,6 +61,7 @@ import { findPackagedDeeplinkArg, launchPackagedPayloadDesktop } from "./payload
 import { packagedEntryUrl, registerOdProtocol } from "./protocol.js";
 import { startPackagedSidecars } from "./sidecars.js";
 import { reportStartupFailure, resolveStartupDistinctId } from "./startup-telemetry.js";
+import { resolvePackagedClosedNetwork } from "./closed-network.js";
 import { resolvePackagedWindowTitle } from "./window-title.js";
 import { syncWindowsUninstallDisplayVersion } from "./windows-lifecycle.js";
 
@@ -174,11 +176,25 @@ async function main(): Promise<void> {
     installedLaunchPath: launcherRuntime.installedLaunchPath,
   });
 
+  // Closed-network mode, resolved from this launch's data root before anything
+  // can egress. Exported to the daemon/desktop children below so all three
+  // processes agree, and used right here to disarm the crash beacon.
+  const closedNetwork = resolvePackagedClosedNetwork({
+    dataRoot: paths.dataRoot,
+    env: process.env,
+  });
+  if (closedNetwork) process.env[CLOSED_NETWORK_ENV] = "1";
+
   // Arm fatal-exit telemetry now that we know the channel key/version. The
   // startPackagedSidecars call below is THE failure this covers (daemon/web
   // dying before reporting status, e.g. issue #4638's missing better-sqlite3).
+  //
+  // Closed-network installs withhold the key, which is the same no-op path a
+  // fork build with no PostHog key already takes: the beacon never fires and
+  // no request is attempted. This is the one telemetry surface the daemon
+  // cannot gate for us, because it runs precisely when the daemon is down.
   startupTelemetryContext = {
-    posthogKey: activeConfig.posthogKey,
+    posthogKey: closedNetwork ? null : activeConfig.posthogKey,
     posthogHost: activeConfig.posthogHost,
     appVersion: activeConfig.appVersion,
     namespace,

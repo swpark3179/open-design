@@ -30,7 +30,15 @@ import {
  */
 export function canPublishPublicFile(
   context: WorkspaceCollabContext | null | undefined,
+  options: { closedNetwork?: boolean } = {},
 ): boolean {
+  // Closed-network mode ("폐쇄망 모드") is the second reason to withhold the
+  // entry point, and it is orthogonal to workspace identity: a public link
+  // uploads the file to the cloud resource hub, which is exactly the kind of
+  // outbound publish a corporate intranet deployment does not want offered.
+  // Unlike the workspace rule this one has no matching daemon 409 — it is a
+  // product policy, not an authorization outcome.
+  if (options.closedNetwork) return false;
   return workspaceContextHasWorkspaceIdentity(context);
 }
 

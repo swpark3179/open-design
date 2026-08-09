@@ -6,6 +6,7 @@ import {
   type McpAnalyticsContextResponse,
   type ObservabilityEventRequest,
 } from '@open-design/contracts/analytics';
+import type { ClosedNetworkStatus } from '@open-design/contracts';
 import {
   createAnalyticsService,
   readAnalyticsContext,
@@ -37,6 +38,12 @@ export interface RegisterTelemetryRoutesDeps {
   dataDir: string;
   readAppConfig: typeof readAppConfig;
   writeAppConfig: typeof writeAppConfig;
+  /**
+   * Closed-network mode. When it disables `telemetry` the daemon's PostHog
+   * client is a no-op and `/api/analytics/config` withholds the key and host,
+   * which is what actually stops the browser from ingesting.
+   */
+  closedNetwork?: ClosedNetworkStatus | null;
 }
 
 export async function resolveMcpAnalyticsContext(
@@ -103,7 +110,8 @@ export async function resolveTrustedMcpEventContext(
 
 export function registerTelemetryRoutes(app: Express, deps: RegisterTelemetryRoutesDeps): DaemonTelemetry {
   const { dataDir } = deps;
-  const analyticsService = createAnalyticsService({ dataDir });
+  const closedNetwork = deps.closedNetwork ?? null;
+  const analyticsService = createAnalyticsService({ dataDir, closedNetwork });
   let cachedAppVersion: any = null;
 
   // PostHog runtime config.
@@ -115,7 +123,7 @@ export function registerTelemetryRoutes(app: Express, deps: RegisterTelemetryRou
   //   POSTHOG_KEY, regardless of consent, so safety/error tracking can run.
   // - Without a build-time key, every telemetry client remains a no-op.
   app.get('/api/analytics/config', async (_req, res) => {
-    const baseline = readPublicConfigResponse();
+    const baseline = readPublicConfigResponse(process.env, closedNetwork);
     if (!baseline.enabled) {
       res.json(baseline);
       return;

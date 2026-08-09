@@ -80,6 +80,14 @@ export const API_ERROR_CODES = [
   'ARTIFACT_PUBLICATION_BLOCKED',
   'UPSTREAM_UNAVAILABLE',
   'RATE_LIMITED',
+  // Closed-network mode ("폐쇄망 모드") is on and the requested route would have
+  // reached a host the deployment cannot talk to (GitHub, a marketplace registry,
+  // a social intent URL). Not retryable and not a network failure: the daemon
+  // refused deliberately, so clients should surface "unavailable in closed-network
+  // mode" rather than a connection error or a retry affordance. The matching UI
+  // entry points are hidden, so a caller seeing this is either the CLI, a stale
+  // renderer, or a direct API user. See `api/closed-network.ts`.
+  'CLOSED_NETWORK_BLOCKED',
   // PR #974 round-4: desktop-paired daemon received an import request
   // but the desktop main process has not yet registered its HMAC secret
   // over sidecar IPC (startup race or daemon-restart-mid-session). The

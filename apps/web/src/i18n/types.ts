@@ -630,6 +630,12 @@ export interface Dict {
   'settings.runtimePackaged': string;
   'settings.runtimeDevelopment': string;
   'settings.versionUnavailable': string;
+  'settings.closedNetworkTitle': string;
+  'settings.closedNetworkOn': string;
+  'settings.closedNetworkSourceEnv': string;
+  'settings.closedNetworkSourceFlagFile': string;
+  'settings.closedNetworkFlagPath': string;
+  'settings.closedNetworkDescription': string;
   'settings.allowSilentUpdates': string;
   'settings.allowSilentUpdatesDesc': string;
   'settings.installLatest': string;

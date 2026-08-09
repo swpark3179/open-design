@@ -1,8 +1,10 @@
 import express, { type Express, type Request } from 'express';
 import {
   ATTRIBUTION_CLAIM_PATH,
+  isClosedNetworkCapabilityDisabled,
   type AttributionClaimResponse,
   type AttributionClaimSource,
+  type ClosedNetworkStatus,
 } from '@open-design/contracts';
 import type { AnalyticsService } from '../analytics.js';
 import type { AppConfigPrefs } from '../app-config.js';
@@ -45,6 +47,13 @@ export interface RegisterAttributionRoutesDeps {
   };
   now?: () => Date;
   fetchImpl?: typeof fetch;
+  /**
+   * Closed-network mode. Install attribution is a marketing-ledger call to
+   * download.open-design.ai; when `telemetry` is disabled the pending token is
+   * left untouched on disk rather than sent, so a later run on an unrestricted
+   * machine could still claim it.
+   */
+  closedNetwork?: ClosedNetworkStatus | null;
 }
 
 type LedgerConsumeResult =
@@ -64,9 +73,14 @@ export function createAttributionService(deps: Omit<RegisterAttributionRoutesDep
   const installationDir = resolveInstallationDir(dataDir);
   const env = deps.env ?? process.env;
   const now = deps.now ?? (() => new Date());
+  const attributionBlocked = isClosedNetworkCapabilityDisabled(
+    deps.closedNetwork ?? null,
+    'telemetry',
+  );
 
   const service: AttributionService = {
     async claim(input) {
+      if (attributionBlocked) return response('invalid');
       const token = normalizeToken(input.token);
       if (!token) {
         return response('invalid');
@@ -81,6 +95,7 @@ export function createAttributionService(deps: Omit<RegisterAttributionRoutesDep
       return processAttribution(pending, { persistBeforeReturn: true });
     },
     async processPending() {
+      if (attributionBlocked) return null;
       const installation = await readInstallationFile(installationDir);
       if (!installation.pendingAttribution) return null;
       return processAttribution(installation.pendingAttribution, { persistBeforeReturn: false });

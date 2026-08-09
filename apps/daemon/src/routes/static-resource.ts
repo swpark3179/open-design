@@ -6,7 +6,12 @@ import type {
   DesignSystemTokenContractRebuildJobResponse,
   WorkspaceCollabContext,
 } from '@open-design/contracts';
-import { TeamResourceCopyForbiddenError } from '@open-design/contracts';
+import {
+  isClosedNetworkCapabilityDisabled,
+  TeamResourceCopyForbiddenError,
+  type ClosedNetworkStatus,
+} from '@open-design/contracts';
+import { requireClosedNetworkCapability } from './closed-network.js';
 import {
   enforceTeamResourceCopyAllowed,
   type TeamResourceStateProvider,
@@ -72,6 +77,12 @@ export interface RegisterAtomRoutesDeps {
 }
 
 export interface RegisterStaticResourceRoutesDeps extends RouteDeps<'db' | 'http' | 'paths' | 'resources'> {
+  /**
+   * Closed-network mode. Optional — like the other route modules that consult
+   * it, an omitted status reads as "not closed", so route fixtures that have
+   * nothing to do with network policy do not have to declare one.
+   */
+  closedNetwork?: ClosedNetworkStatus | null;
   verifyWorkspaceRequestAuthority?: VerifyWorkspaceRequestAuthority;
   tokenContractRebuild?: {
     maybeStartForImportedDesignSystem?: (
@@ -135,6 +146,22 @@ export function registerStaticResourceRoutes(app: Express, ctx: RegisterStaticRe
   } = ctx.resources;
   const { isLocalSameOrigin, resolvedPortRef, sendApiError } = ctx.http;
   const teamResources = ctx.teamResources;
+  const marketplaceEgressBlocked = isClosedNetworkCapabilityDisabled(
+    ctx.closedNetwork ?? null,
+    'plugin-marketplace',
+  );
+  const requireMarketplaceEgress = requireClosedNetworkCapability({
+    closedNetwork: ctx.closedNetwork ?? null,
+    capability: 'plugin-marketplace',
+    sendApiError,
+    message: 'installing from GitHub is unavailable in closed-network mode',
+  });
+  const requireCommunityEgress = requireClosedNetworkCapability({
+    closedNetwork: ctx.closedNetwork ?? null,
+    capability: 'plugin-marketplace',
+    sendApiError,
+    message: 'community catalog sync is unavailable in closed-network mode',
+  });
   const requireLocalOrigin = (req: any, res: any) => {
     if (isLocalSameOrigin(req, resolvedPortRef.current)) return true;
     sendApiError(res, 403, 'FORBIDDEN', 'local origin required');
@@ -718,7 +745,7 @@ export function registerStaticResourceRoutes(app: Express, ctx: RegisterStaticRe
   // immediately. The body is intentionally tiny — we keep the heavier
   // tuning knobs (`--limit`, `--concurrency`) on the CLI script and
   // only surface `force` + `source` here.
-  app.post('/api/codex-pets/sync', async (req, res) => {
+  app.post('/api/codex-pets/sync', requireCommunityEgress, async (req, res) => {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const sourceRaw = typeof body.source === 'string' ? body.source : 'all';
@@ -1082,7 +1109,19 @@ export function registerStaticResourceRoutes(app: Express, ctx: RegisterStaticRe
       const isLegacyTarget =
         (body.source === 'github' && typeof body.url === 'string') ||
         (body.source === 'local' && typeof body.path === 'string');
-      if (body.source === 'local' && typeof body.path === 'string') {
+      // Installing from a local directory still works in closed-network mode —
+      // only the remote fetch paths (a GitHub URL, or a bare source id that
+      // resolves against the marketplace registry) are refused.
+      const isLocalTarget = body.source === 'local' && typeof body.path === 'string';
+      if (!isLocalTarget && marketplaceEgressBlocked) {
+        return sendApiError(
+          res,
+          503,
+          'CLOSED_NETWORK_BLOCKED',
+          'installing a skill from a remote source is unavailable in closed-network mode',
+        );
+      }
+      if (isLocalTarget) {
         const localSkillId = readSkillIdFromDirectory(body.path);
         if (localSkillId && await rejectSkillIdentityConflict(res, authority, localSkillId)) return;
       }
@@ -1315,7 +1354,7 @@ export function registerStaticResourceRoutes(app: Express, ctx: RegisterStaticRe
     }
   });
 
-  app.post('/api/design-systems/import/github', async (req, res) => {
+  app.post('/api/design-systems/import/github', requireMarketplaceEgress, async (req, res) => {
     if (!requireLocalOrigin(req, res)) return;
     try {
       const workspaceContext = await resolveWorkspaceAuthority(req, res);

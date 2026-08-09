@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { useAnalytics } from '../../analytics/provider';
 import { trackSettingsPetsClick } from '../../analytics/events';
 import { useT } from '../../i18n';
+import { useClosedNetworkCapability } from '../../runtime/closed-network';
 import { Icon } from '../Icon';
 import type { AppConfig, CodexPetSummary, PetConfig, PetCustom } from '../../types';
 import { DEFAULT_PET } from '../../state/config';
@@ -95,6 +96,7 @@ export function PetSettings({ cfg, setCfg }: Props) {
   // Codex Pet Share + j20 Hatchery into `~/.codex/pets/`. We surface
   // the run summary (or error) inline below the head row so users get
   // direct feedback after the long-running download.
+  const hideCommunitySync = useClosedNetworkCapability('plugin-marketplace');
   const [communitySyncing, setCommunitySyncing] = useState(false);
   const [communitySyncStatus, setCommunitySyncStatus] = useState<
     | { kind: 'done'; wrote: number; total: number }
@@ -982,23 +984,27 @@ export function PetSettings({ cfg, setCfg }: Props) {
                 </p>
               </div>
               <div className="pet-codex-head-actions">
-                <button
-                  type="button"
-                  className="seg-btn small"
-                  onClick={() => void handleCommunitySync()}
-                  disabled={communitySyncing}
-                  title={t('pet.communitySyncTitle')}
-                >
-                  <Icon
-                    name={communitySyncing ? 'spinner' : 'download'}
-                    size={14}
-                  />
-                  <span>
-                    {communitySyncing
-                      ? t('pet.communitySyncing')
-                      : t('pet.communitySync')}
-                  </span>
-                </button>
+                {/* Downloads from the Codex Pet Share and j20 Hatchery
+                    catalogs; the local refresh beside it still works. */}
+                {hideCommunitySync ? null : (
+                  <button
+                    type="button"
+                    className="seg-btn small"
+                    onClick={() => void handleCommunitySync()}
+                    disabled={communitySyncing}
+                    title={t('pet.communitySyncTitle')}
+                  >
+                    <Icon
+                      name={communitySyncing ? 'spinner' : 'download'}
+                      size={14}
+                    />
+                    <span>
+                      {communitySyncing
+                        ? t('pet.communitySyncing')
+                        : t('pet.communitySync')}
+                    </span>
+                  </button>
+                )}
                 <button
                   type="button"
                   className="seg-btn small ghost"

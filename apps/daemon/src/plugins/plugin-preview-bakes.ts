@@ -14,6 +14,10 @@
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import {
+  isClosedNetworkCapabilityDisabled,
+  type ClosedNetworkStatus,
+} from '@open-design/contracts';
 
 export const PLUGIN_PREVIEWS_ROUTE = '/api/plugin-previews';
 
@@ -66,7 +70,22 @@ function loadManifest(dir: string): Record<string, BakeEntry> {
   }
 }
 
-export function bakedPreviewBlock(id: string, dir: string): BakedPreviewBlock | null {
+export interface BakedPreviewOptions {
+  /**
+   * Closed-network mode. When it disables `home-external-content`, a bake that
+   * would only be reachable from the public CDN is treated as absent — the
+   * gallery then takes the same live-iframe path it already uses for plugins
+   * that were never baked, instead of rendering a poster that cannot load.
+   * Clips that are on disk keep serving from the daemon's own route.
+   */
+  closedNetwork?: ClosedNetworkStatus | null;
+}
+
+export function bakedPreviewBlock(
+  id: string,
+  dir: string,
+  options: BakedPreviewOptions = {},
+): BakedPreviewBlock | null {
   const entry = loadManifest(dir)[id];
   if (!entry || !entry.video || !entry.poster) return null;
   // Resolve where the clip is fetchable from, in priority order:
@@ -80,6 +99,12 @@ export function bakedPreviewBlock(id: string, dir: string): BakedPreviewBlock | 
   const onDisk =
     existsSync(path.join(dir, entry.video)) && existsSync(path.join(dir, entry.poster));
   const base = envBase || (onDisk ? PLUGIN_PREVIEWS_ROUTE : DEFAULT_PUBLIC_BASE);
+  if (
+    base === DEFAULT_PUBLIC_BASE &&
+    isClosedNetworkCapabilityDisabled(options.closedNetwork ?? null, 'home-external-content')
+  ) {
+    return null;
+  }
   return {
     poster: `${base}/${entry.poster}`,
     video: `${base}/${entry.video}`,
@@ -95,11 +120,12 @@ export function bakedPreviewBlock(id: string, dir: string): BakedPreviewBlock | 
 export function applyBakedPreviews<T extends { id: string; manifest?: unknown }>(
   records: T[],
   dir: string,
+  options: BakedPreviewOptions = {},
 ): T[] {
   const previews = loadManifest(dir);
   if (Object.keys(previews).length === 0) return records;
   return records.map((rec) => {
-    const block = bakedPreviewBlock(rec.id, dir);
+    const block = bakedPreviewBlock(rec.id, dir, options);
     if (!block) return rec;
     const manifest = { ...((rec.manifest ?? {}) as Record<string, unknown>) };
     const od = { ...((manifest.od ?? {}) as Record<string, unknown>) };

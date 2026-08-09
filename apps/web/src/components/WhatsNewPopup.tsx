@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button, Dialog } from '@open-design/components';
 import { useI18n } from '../i18n';
+import { useClosedNetworkCapability } from '../runtime/closed-network';
 import { fetchWhatsNew, openExternalUrl } from '../providers/registry';
 import {
   localizedWhatsNewContent,
@@ -73,6 +74,11 @@ type CardModel = {
 export function WhatsNewPopup({ active }: { active: boolean }) {
   const { t, locale } = useI18n();
   const analytics = useAnalytics();
+  // The highlights document is hosted on the public internet and its CTA points
+  // at GitHub releases. The daemon already answers `{ id: null }` here in
+  // closed-network mode; skipping the request too keeps Home free of a
+  // round-trip whose answer is known.
+  const hideExternalContent = useClosedNetworkCapability('home-external-content');
   const hookAppVersion = useAppVersion();
   const [card, setCard] = useState<CardModel | null>(null);
   const surfaceTrackedRef = useRef(false);
@@ -85,7 +91,7 @@ export function WhatsNewPopup({ active }: { active: boolean }) {
   const appVersion = card == null ? null : statedAppVersion(hookAppVersion, card.documentVersion);
 
   useEffect(() => {
-    if (!active || decisionMadeRef.current) return;
+    if (!active || hideExternalContent || decisionMadeRef.current) return;
     let cancelled = false;
     void fetchWhatsNew().then((info) => {
       // `cancelled` guards state updates after this effect invocation is torn
@@ -111,7 +117,7 @@ export function WhatsNewPopup({ active }: { active: boolean }) {
     // The dialog resolves once per Home activation; live locale switches keep
     // the copy it resolved with rather than refetching mid-display.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [active, hideExternalContent]);
 
   useEffect(() => {
     if (!active || card == null || appVersion == null || surfaceTrackedRef.current) return;

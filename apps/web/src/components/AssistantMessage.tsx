@@ -79,6 +79,7 @@ import { NextStepActions, type NextStepActionsVariant } from "./NextStepActions"
 import type { DesignToolboxActionId } from "../runtime/design-toolbox";
 import { copyToClipboard } from "../lib/copy-to-clipboard";
 import { useT } from "../i18n";
+import { useClosedNetworkCapability } from "../runtime/closed-network";
 import { deriveFileOps, type FileOpEntry } from "../runtime/file-ops";
 import { dedupeToolUsesById } from "../runtime/tool-events";
 import {
@@ -1724,6 +1725,7 @@ function AssistantFeedback({
   // so we pass them down with a stable identity. `producedFileCount` feeds
   // `has_produced_files` on assistant_feedback_button click.
   const [burstKey, setBurstKey] = useState(0);
+  const hideCommunityLinks = useClosedNetworkCapability("community-links");
   const [reasonRating, setReasonRating] =
     useState<ChatMessageFeedbackRating | null>(null);
   const reasonsRef = useRef<HTMLDivElement | null>(null);
@@ -2053,7 +2055,9 @@ function AssistantFeedback({
               onChange={(event) => setCustomReason(event.target.value)}
             />
           ) : null}
-          {reasonRating === "positive" ? (
+          {/* The feedback itself still submits — only the "take it to Discord"
+              nudge goes away, since discord.gg is unreachable here. */}
+          {hideCommunityLinks ? null : reasonRating === "positive" ? (
             <p className="assistant-feedback-discord-note">
               Share what you made with the{" "}
               <a

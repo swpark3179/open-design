@@ -39,6 +39,7 @@ import {
 import { readProcessStamp } from "@open-design/platform";
 
 import { createDesktopRuntime, type DesktopRuntime } from "./runtime.js";
+import { isClosedNetworkEnv } from "./closed-network.js";
 import { dispatchInviteDeeplink, registerInviteDeeplink } from "./invite-deeplink.js";
 import { focusDesktopForDeeplink } from "./deeplink-focus.js";
 import { setUpDesktopCrashReporter, writeDesktopGpuInfo } from "./crash-diagnostics.js";
@@ -394,6 +395,7 @@ function installDesktopMenu(
   let lastKnownAmrProfile: AmrEnvironmentProfile = "prod";
   let updateMenuLabels = DEFAULT_DESKTOP_UPDATE_MENU_LABELS;
   let updateStatus = options.updater.snapshot();
+  const closedNetwork = isClosedNetworkEnv(process.env);
   const developMenuAccelerator = process.platform === "darwin" ? "Command+Option+Shift+D" : "Control+Alt+Shift+D";
 
   const showDevelopMenuError = (message: string, error: unknown): void => {
@@ -554,33 +556,41 @@ function installDesktopMenu(
       {
         label: "Help",
         role: "help",
+        // github.com, x.com, and discord.gg are exactly what a 폐쇄망 perimeter
+        // blocks, so closed-network builds drop the four outbound entries and
+        // keep only Export Diagnostics — the one item that stays useful when
+        // the user has no way to reach any of those destinations anyway.
         submenu: [
-          {
-            label: "Documentation",
-            click() {
-              void shell.openExternal("https://github.com/nexu-io/open-design#readme");
-            },
-          },
-          { type: "separator" },
-          {
-            label: "Contact Us",
-            click() {
-              void shell.openExternal("https://x.com/OpenDesignHQ");
-            },
-          },
-          {
-            label: "Report Issue",
-            click() {
-              void shell.openExternal("https://github.com/nexu-io/open-design/issues/new");
-            },
-          },
-          {
-            label: "Join Discord",
-            click() {
-              void shell.openExternal("https://discord.gg/mHAjSMV6gz");
-            },
-          },
-          { type: "separator" },
+          ...(closedNetwork
+            ? []
+            : [
+                {
+                  label: "Documentation",
+                  click() {
+                    void shell.openExternal("https://github.com/nexu-io/open-design#readme");
+                  },
+                },
+                { type: "separator" as const },
+                {
+                  label: "Contact Us",
+                  click() {
+                    void shell.openExternal("https://x.com/OpenDesignHQ");
+                  },
+                },
+                {
+                  label: "Report Issue",
+                  click() {
+                    void shell.openExternal("https://github.com/nexu-io/open-design/issues/new");
+                  },
+                },
+                {
+                  label: "Join Discord",
+                  click() {
+                    void shell.openExternal("https://discord.gg/mHAjSMV6gz");
+                  },
+                },
+                { type: "separator" as const },
+              ]),
           { label: "Export Diagnostics…", click: exportDiagnostics },
         ],
       },

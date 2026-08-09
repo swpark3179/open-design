@@ -223,6 +223,7 @@ import {
   readStoredRailOpen,
 } from './entryRailBridge';
 import { enterpriseUrl } from './enterpriseUrl';
+import { useClosedNetworkCapability } from '../runtime/closed-network';
 import { resolveByokModelPreference } from './byok/validation';
 import onboardingSourceStyles from './OnboardingModelSource.module.css';
 
@@ -634,6 +635,7 @@ export function EntryShell({
         ? null
         : amrAccountPlan?.trim() || null,
   });
+  const hideCommunityLinks = useClosedNetworkCapability('community-links');
   const deepSeekV4FlashCampaignAudience = resolveDeepSeekV4FlashCampaignAudience({
     // Subscription is the only campaign segmentation axis. In particular,
     // `resolvePlanLabelTier` turns the backend-confirmed unsubscribed state into
@@ -1561,6 +1563,9 @@ export function EntryShell({
           <WhatsNewPopup active={view === 'home'} />
           {view === 'home'
             && deepSeekV4FlashCampaignAudience !== 'unknown'
+            // The badge's only action is opening open-design.ai pricing, so it
+            // has nothing to offer a closed-network deployment.
+            && !hideCommunityLinks
             && typeof document !== 'undefined'
             ? createPortal(
               <button

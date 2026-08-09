@@ -87,4 +87,48 @@ describe("desktop updater config", () => {
       rmSync(root, { force: true, recursive: true });
     }
   });
+
+  describe("closed-network mode", () => {
+    // releases.open-design.ai is not reachable from a 폐쇄망 deployment, so the
+    // poll would only burn timeouts and offer an update it can never fetch.
+    it("disables the updater even when OD_UPDATE_ENABLED asks for it", () => {
+      const root = makeRoot();
+      try {
+        const config = resolveDesktopUpdaterConfig({
+          currentVersion: "1.2.3",
+          downloadRoot: root,
+          env: {
+            OD_CLOSED_NETWORK: "1",
+            [DESKTOP_UPDATE_ENV.ENABLED]: "1",
+            [DESKTOP_UPDATE_ENV.AUTO_CHECK]: "1",
+          },
+          source: SIDECAR_SOURCES.PACKAGED,
+        });
+
+        expect(config.enabled).toBe(false);
+        // `shouldAutoCheck()` is `enabled && autoCheck`, so a disabled updater
+        // never schedules a poll regardless of this value.
+        expect(config.autoCheck).toBe(true);
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    it("leaves a packaged build enabled when the flag is off or malformed", () => {
+      const root = makeRoot();
+      try {
+        for (const value of ["0", "false", "perhaps"]) {
+          const config = resolveDesktopUpdaterConfig({
+            currentVersion: "1.2.3",
+            downloadRoot: root,
+            env: { OD_CLOSED_NETWORK: value },
+            source: SIDECAR_SOURCES.PACKAGED,
+          });
+          expect(config.enabled).toBe(true);
+        }
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+  });
 });

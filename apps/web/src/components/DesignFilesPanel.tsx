@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAnalytics } from '../analytics/provider';
 import { trackFileManagerClick } from '../analytics/events';
 import { useT } from '../i18n';
+import { useClosedNetworkCapability } from '../runtime/closed-network';
 import { LIBRARY_UI_VISIBLE } from '../features/libraryUi';
 import type { Dict } from '../i18n/types';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
@@ -364,13 +365,31 @@ function prefersReducedMotion(): boolean {
 // shown immediately and just cycles.
 function RotatingTip({ auxiliary = false }: { auxiliary?: boolean }) {
   const t = useT();
+  // Closed-network mode drops the community tips (Discord/GitHub/X/Threads/
+  // Instagram/YouTube/LinkedIn/Xiaohongshu) and keeps the product ones. The
+  // whole rotation runs off this list, so the index can never point at a tip
+  // that was filtered out.
+  const hideCommunityLinks = useClosedNetworkCapability('community-links');
+  const tips = useMemo(
+    () => (hideCommunityLinks ? USEFUL_TIPS.filter((tip) => !tip.url) : USEFUL_TIPS),
+    [hideCommunityLinks],
+  );
   const [index, setIndex] = useState(0);
   const [typed, setTyped] = useState('');
   // Resolve tips each render but read them through a ref so the typing effect
   // depends only on `index` — depending on the (re-created) array would reset
   // the typewriter on every render and never advance.
   const tipsRef = useRef<string[]>([]);
-  tipsRef.current = USEFUL_TIPS.map(({ key }) => t(key));
+  tipsRef.current = tips.map(({ key }) => t(key));
+
+  // The daemon's answer lands after mount, so the list can shrink mid-rotation.
+  // Restart from the top rather than leaving `index` pointing past the end,
+  // which would keep the already-typed community tip on screen until the next
+  // hold elapsed — the one thing this filter exists to prevent.
+  useEffect(() => {
+    setIndex(0);
+    setTyped('');
+  }, [hideCommunityLinks]);
 
   useEffect(() => {
     const tips = tipsRef.current;
@@ -417,8 +436,8 @@ function RotatingTip({ auxiliary = false }: { auxiliary?: boolean }) {
         <span className="df-useful-info-label">{t('designFiles.usefulInfoLabel')}</span>
       </div>
       <span className="df-useful-info-tip">
-        {USEFUL_TIPS[index]?.url ? (
-          <a className="df-tip-link" href={USEFUL_TIPS[index].url} target="_blank" rel="noreferrer">
+        {tips[index]?.url ? (
+          <a className="df-tip-link" href={tips[index].url} target="_blank" rel="noreferrer">
             {typed}
           </a>
         ) : (
@@ -491,6 +510,7 @@ export function DesignFilesPanel({
   const [deleting, setDeleting] = useState(false);
   const [installingFolder, setInstallingFolder] = useState<string | null>(null);
   const [sharingFolder, setSharingFolder] = useState<string | null>(null);
+  const hideExternalPublish = useClosedNetworkCapability('external-publish');
   const [installNotice, setInstallNotice] = useState<ActionNotice | null>(null);
   const [renaming, setRenaming] = useState<{ name: string; draft: string; saving: boolean } | null>(null);
   const [copiedLocalPath, setCopiedLocalPath] = useState<string | null>(null);
@@ -1708,28 +1728,35 @@ export function DesignFilesPanel({
                           >
                             {installingFolder === folder.path ? 'Sending…' : 'Add to My plugins'}
                           </button>
-                          <button
-                            type="button"
-                            className="df-plugin-install"
-                            data-testid={`design-plugin-folder-publish-${folder.path}`}
-                            disabled={actionBusy || installingFolder !== null || sharingFolder !== null}
-                            onClick={() =>
-                              void handlePluginFolderAgentAction(folder.path, 'publish')
-                            }
-                          >
-                            {sharingFolder === `publish:${folder.path}` ? 'Sending…' : 'Publish repo'}
-                          </button>
-                          <button
-                            type="button"
-                            className="df-plugin-install"
-                            data-testid={`design-plugin-folder-contribute-${folder.path}`}
-                            disabled={actionBusy || installingFolder !== null || sharingFolder !== null}
-                            onClick={() =>
-                              void handlePluginFolderAgentAction(folder.path, 'contribute')
-                            }
-                          >
-                            {sharingFolder === `contribute:${folder.path}` ? 'Sending…' : 'Open Design PR'}
-                          </button>
+                          {/* Both drive the agent to push a repo / open a PR on
+                              github.com, so a closed-network deployment keeps
+                              only the local "Add to My plugins" action. */}
+                          {hideExternalPublish ? null : (
+                            <button
+                              type="button"
+                              className="df-plugin-install"
+                              data-testid={`design-plugin-folder-publish-${folder.path}`}
+                              disabled={actionBusy || installingFolder !== null || sharingFolder !== null}
+                              onClick={() =>
+                                void handlePluginFolderAgentAction(folder.path, 'publish')
+                              }
+                            >
+                              {sharingFolder === `publish:${folder.path}` ? 'Sending…' : 'Publish repo'}
+                            </button>
+                          )}
+                          {hideExternalPublish ? null : (
+                            <button
+                              type="button"
+                              className="df-plugin-install"
+                              data-testid={`design-plugin-folder-contribute-${folder.path}`}
+                              disabled={actionBusy || installingFolder !== null || sharingFolder !== null}
+                              onClick={() =>
+                                void handlePluginFolderAgentAction(folder.path, 'contribute')
+                              }
+                            >
+                              {sharingFolder === `contribute:${folder.path}` ? 'Sending…' : 'Open Design PR'}
+                            </button>
+                          )}
                         </div>
                       ) : null}
                     </div>

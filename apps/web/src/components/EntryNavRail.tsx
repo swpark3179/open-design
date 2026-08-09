@@ -50,6 +50,7 @@ import { SignOutConfirmDialog } from './SignOutConfirmDialog';
 import { notifyAmrLoginStatusChanged } from './amrLoginPolling';
 import { Icon } from './Icon';
 import { GITHUB_STARS_FALLBACK_LABEL, formatStars, useGithubStars } from './useGithubStars';
+import { useClosedNetworkCapability } from '../runtime/closed-network';
 import { PlanWordmark, planBadgeTierForWorkspace } from './PlanWordmark';
 import { RemixIcon } from './RemixIcon';
 import { InviteDialog } from './InviteDialog';
@@ -666,7 +667,11 @@ export function EntryNavRail({
   // Sign-out confirm gate (recvqgMWpJZqhL): the menu item only ARMS the
   // confirmation dialog; the real logout chain runs on explicit confirm.
   const [confirmSignOut, setConfirmSignOut] = useState(false);
-  const githubStars = useGithubStars();
+  // Closed-network mode: github.com / discord.gg / x.com are unreachable, so the
+  // account menu drops its outbound rows rather than offering links that dead-end.
+  const hideCommunityLinks = useClosedNetworkCapability('community-links');
+  const hideMessageCenter = useClosedNetworkCapability('message-center');
+  const githubStars = useGithubStars({ enabled: !hideCommunityLinks });
   // Signed-in account email for the menu head (#5517 shows it under the
   // display name). The workspace context carries no email, so lazily read the
   // vela login-status projection the first time the menu opens — never on
@@ -1142,55 +1147,62 @@ export function EntryNavRail({
                   >
                     <Icon name="settings" size={15} /> {t('entry.accountSettings')}
                   </button>
-                  <button
-                    type="button"
-                    className="entry-nav-rail__menu-item"
-                    role="menuitem"
-                    aria-haspopup="dialog"
-                    aria-expanded={messageCenterOpen}
-                    data-testid="account-menu-message-center"
-                    onClick={() => {
-                      trackAccountAction('message_center');
-                      setAccountOpen(false);
-                      setMessageCenterOpen(true);
-                    }}
-                  >
-                    <Icon name="bell" size={15} /> {t('messageCenter.title')}
-                    {messageUnreadCount > 0 ? (
-                      <span className="entry-nav-rail__menu-item-dot" aria-hidden />
-                    ) : null}
-                  </button>
+                  {hideMessageCenter ? null : (
+                    <button
+                      type="button"
+                      className="entry-nav-rail__menu-item"
+                      role="menuitem"
+                      aria-haspopup="dialog"
+                      aria-expanded={messageCenterOpen}
+                      data-testid="account-menu-message-center"
+                      onClick={() => {
+                        trackAccountAction('message_center');
+                        setAccountOpen(false);
+                        setMessageCenterOpen(true);
+                      }}
+                    >
+                      <Icon name="bell" size={15} /> {t('messageCenter.title')}
+                      {messageUnreadCount > 0 ? (
+                        <span className="entry-nav-rail__menu-item-dot" aria-hidden />
+                      ) : null}
+                    </button>
+                  )}
                   {/* #5517's account menu goes 设置 → GitHub 帮助 → 功能建议 → 社交行,
                       with no theme row, no language submenu, and no divider in
                       between. Both controls still have a home in 设置·通用 (theme
                       segmented control + language picker), so dropping the
                       duplicates here costs no capability. */}
-                  <a
-                    className="entry-nav-rail__menu-item"
-                    role="menuitem"
-                    href={GITHUB_HELP_URL}
-                    {...externalLinkProps}
-                    onClick={() => {
-                      trackAccountAction('github_help');
-                      setAccountOpen(false);
-                    }}
-                  >
-                    <Icon name="comment" size={15} /> {t('entry.accountGithubHelp')}
-                  </a>
-                  <a
-                    className="entry-nav-rail__menu-item"
-                    role="menuitem"
-                    href={GITHUB_FEATURE_URL}
-                    {...externalLinkProps}
-                    onClick={() => {
-                      trackAccountAction('feature_request');
-                      setAccountOpen(false);
-                    }}
-                  >
-                    <Icon name="sparkles" size={15} /> {t('entry.accountFeatureRequest')}
-                  </a>
+                  {hideCommunityLinks ? null : (
+                    <a
+                      className="entry-nav-rail__menu-item"
+                      role="menuitem"
+                      href={GITHUB_HELP_URL}
+                      {...externalLinkProps}
+                      onClick={() => {
+                        trackAccountAction('github_help');
+                        setAccountOpen(false);
+                      }}
+                    >
+                      <Icon name="comment" size={15} /> {t('entry.accountGithubHelp')}
+                    </a>
+                  )}
+                  {hideCommunityLinks ? null : (
+                    <a
+                      className="entry-nav-rail__menu-item"
+                      role="menuitem"
+                      href={GITHUB_FEATURE_URL}
+                      {...externalLinkProps}
+                      onClick={() => {
+                        trackAccountAction('feature_request');
+                        setAccountOpen(false);
+                      }}
+                    >
+                      <Icon name="sparkles" size={15} /> {t('entry.accountFeatureRequest')}
+                    </a>
+                  )}
                   {/* #5517: the GitHub/Discord/X/mail badges move off the rail
                       footer into a compact social row inside the account menu. */}
+                  {hideCommunityLinks ? null : (
                   <div className="entry-nav-rail__menu-social">
                     <a
                       className="entry-nav-rail__menu-social-btn"
@@ -1251,6 +1263,7 @@ export function EntryNavRail({
                       <Icon name="mail" size={15} />
                     </a>
                   </div>
+                  )}
                   <div className="entry-nav-rail__menu-divider" />
                   <button
                     type="button"
@@ -1591,20 +1604,22 @@ export function EntryNavRail({
             {/* Signed-out has no account menu (where the 消息中心 row lives when
                 signed in), which left the message panel with no opener at all.
                 It rides here as the rail item under 设置. */}
-            <NavButton
-              ariaLabel={t('messageCenter.title')}
-              label={t('messageCenter.title')}
-              onClick={() => setMessageCenterOpen(true)}
-              testId="entry-nav-message-center"
-              buttonRef={messageCenterRailRef}
-              ariaHasPopup="dialog"
-              ariaExpanded={messageCenterOpen}
-            >
-              <Icon name="bell" size={16} />
-              {messageUnreadCount > 0 ? (
-                <span className="entry-nav-rail__btn-dot" aria-hidden />
-              ) : null}
-            </NavButton>
+            {hideMessageCenter ? null : (
+              <NavButton
+                ariaLabel={t('messageCenter.title')}
+                label={t('messageCenter.title')}
+                onClick={() => setMessageCenterOpen(true)}
+                testId="entry-nav-message-center"
+                buttonRef={messageCenterRailRef}
+                ariaHasPopup="dialog"
+                ariaExpanded={messageCenterOpen}
+              >
+                <Icon name="bell" size={16} />
+                {messageUnreadCount > 0 ? (
+                  <span className="entry-nav-rail__btn-dot" aria-hidden />
+                ) : null}
+              </NavButton>
+            )}
           </>
         )}
       </div>
@@ -1624,7 +1639,11 @@ export function EntryNavRail({
       </div>
 
       {/* Panel + unread polling live here (outside the hover menu, which
-          unmounts when closed); the 消息中心 menu row above just opens it. */}
+          unmounts when closed); the 消息中心 menu row above just opens it.
+          Unmounting it in closed-network mode is what actually stops the
+          60-second amr-api poll — hiding only the openers would leave the
+          timer running behind a panel nobody can reach. */}
+      {hideMessageCenter ? null : (
       <MessageCenter
         hideTrigger
         returnFocusRef={messageCenterReturnFocusRef}
@@ -1633,6 +1652,7 @@ export function EntryNavRail({
         onUnreadCountChange={setMessageUnreadCount}
         onOpenNotificationSettings={onOpenSettings ? () => onOpenSettings('notifications') : undefined}
       />
+      )}
 
       <InviteDialog
         open={inviteOpen}

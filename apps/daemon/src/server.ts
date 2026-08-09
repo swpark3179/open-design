@@ -306,6 +306,7 @@ import {
   isSandboxModeEnabled,
   resolveSandboxRuntimeConfig,
 } from './sandbox-mode.js';
+import { resolveClosedNetworkStatus } from './closed-network.js';
 import {
   backfillDesignSystemWorkspaceResources,
   buildUserDesignSystemArchive,
@@ -704,6 +705,7 @@ import { registerActiveContextRoutes } from './routes/active-context.js';
 import { registerAutomationRoutes } from './routes/automation.js';
 import { registerAttributionRoutes } from './routes/attribution.js';
 import { registerDaemonRoutes } from './routes/daemon.js';
+import { registerClosedNetworkRoutes } from './routes/closed-network.js';
 import { registerGenuiRoutes } from './routes/genui.js';
 import { registerDesignSystemRoutes } from './routes/design-systems.js';
 import { registerHostToolsRoutes } from './routes/host-tools.js';
@@ -1173,6 +1175,14 @@ for (const dir of [USER_SKILLS_DIR, USER_DESIGN_SYSTEMS_DIR, BRANDS_DIR, USER_DE
   fs.mkdirSync(dir, { recursive: true });
 }
 fs.mkdirSync(CRITIQUE_ARTIFACTS_DIR, { recursive: true });
+// Closed-network mode ("폐쇄망 모드"), resolved once here alongside the other
+// boot-time runtime policies. Every daemon call that would reach a host a
+// corporate intranet blocks consults this instead of re-reading the marker.
+const CLOSED_NETWORK = resolveClosedNetworkStatus({
+  env: process.env,
+  dataDir: RUNTIME_DATA_DIR,
+  projectsDir: PROJECTS_DIR,
+});
 const orbitService = new OrbitService(RUNTIME_DATA_DIR);
 const designSystemGenerationJobs = createDesignSystemGenerationJobStore({
   root: USER_DESIGN_SYSTEMS_DIR,
@@ -6389,6 +6399,7 @@ export async function startServer({
     dataDir: RUNTIME_DATA_DIR,
     readAppConfig,
     writeAppConfig,
+    closedNetwork: CLOSED_NETWORK,
   });
   const { analyticsService } = telemetry;
   workspaceAnalyticsService = analyticsService;
@@ -6519,6 +6530,7 @@ export async function startServer({
     http: httpDeps,
     paths: { RUNTIME_DATA_DIR },
     env: process.env,
+    closedNetwork: CLOSED_NETWORK,
   });
   const pathDeps = {
     PROJECT_ROOT,
@@ -6591,14 +6603,18 @@ export async function startServer({
     env: process.env,
   });
 
-  const openDesignPublicMetadata = createOpenDesignPublicMetadataService();
+  registerClosedNetworkRoutes(app, { closedNetwork: CLOSED_NETWORK });
+
+  const openDesignPublicMetadata = createOpenDesignPublicMetadataService({
+    closedNetwork: CLOSED_NETWORK,
+  });
   registerOpenDesignPublicMetadataRoutes(app, {
     http: httpDeps,
     openDesignPublicMetadata,
   });
 
   registerWhatsNewRoutes(app, {
-    whatsNew: createWhatsNewService(),
+    whatsNew: createWhatsNewService({ closedNetwork: CLOSED_NETWORK }),
   });
 
   registerPluginEventRoutes(app, {
@@ -7008,7 +7024,7 @@ export async function startServer({
       }
     });
   });
-  registerSocialShareRoutes(app, { http: httpDeps });
+  registerSocialShareRoutes(app, { http: httpDeps, closedNetwork: CLOSED_NETWORK });
   registerProjectRoutes(app, {
     db,
     design,
@@ -7280,6 +7296,7 @@ export async function startServer({
     db,
     http: httpDeps,
     paths: pathDeps,
+    closedNetwork: CLOSED_NETWORK,
     verifyWorkspaceRequestAuthority,
     teamResources: collab.teamResources,
     resources: {
@@ -7556,6 +7573,7 @@ export async function startServer({
     appConfig: { readAppConfig },
     http: { getPublicBaseUrl },
     env: process.env,
+    closedNetwork: CLOSED_NETWORK,
   });
 
   const allowScopedPluginReplace = (
@@ -7578,7 +7596,10 @@ export async function startServer({
 
   const pluginRouteHelpers = {
     PLUGIN_PREVIEWS_DIR,
-    applyBakedPreviews,
+    applyBakedPreviews: <T extends { id: string; manifest?: unknown }>(
+      records: T[],
+      previewsDir: string,
+    ) => applyBakedPreviews(records, previewsDir, { closedNetwork: CLOSED_NETWORK }),
     assembleExample,
     pluginUpload,
     pluginInstallation,
@@ -7989,6 +8010,7 @@ export async function startServer({
     bundledMarketplaceEntries,
     createMarketplaceFetcher,
     marketplaceRegistryIdFromUrl,
+    closedNetwork: CLOSED_NETWORK,
   });
   registerPluginAssetRoutes(app, {
     db,

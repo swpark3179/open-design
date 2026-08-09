@@ -32,6 +32,8 @@ import {
   wellKnownUserToolchainBins,
 } from "@open-design/platform";
 
+import { CLOSED_NETWORK_ENV } from "@open-design/contracts";
+
 import type { PackagedWebOutputMode } from "./config.js";
 import type { PackagedNamespacePaths } from "./paths.js";
 import {
@@ -45,6 +47,10 @@ const require = createRequire(import.meta.url);
 const PACKAGED_CHILD_ENV_ALLOWLIST = [
   "CODEX_HOME",
   "HOME",
+  // Closed-network mode. The outer process resolves the marker once and stamps
+  // this so the daemon it spawns cannot reach a different conclusion (the
+  // daemon still re-resolves on its own for non-packaged launches).
+  CLOSED_NETWORK_ENV,
   "HTTP_PROXY",
   "HTTPS_PROXY",
   "LANG",
@@ -67,6 +73,7 @@ const PACKAGED_CHILD_ENV_ALLOWLIST = [
 // same feed/test policy as the outer process, without broadening the packaged
 // child environment allowlist.
 const PACKAGED_DESKTOP_HANDOFF_ENV_KEYS = [
+  CLOSED_NETWORK_ENV,
   "OD_UPDATE_ARCH",
   "OD_UPDATE_AUTO_CHECK",
   "OD_UPDATE_AUTO_DOWNLOAD",

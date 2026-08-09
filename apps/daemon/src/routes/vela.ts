@@ -1,5 +1,9 @@
 import type { Express, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import {
+  isClosedNetworkCapabilityDisabled,
+  type ClosedNetworkStatus,
+} from '@open-design/contracts';
 import dns from 'node:dns';
 import http from 'node:http';
 import https from 'node:https';
@@ -143,6 +147,13 @@ export interface RegisterVelaRoutesDeps {
     getPublicBaseUrl?: PublicBaseUrlResolver;
   };
   env?: NodeJS.ProcessEnv;
+  /**
+   * Closed-network mode. Only the Message Center is gated: its 60-second
+   * background poll is the loudest outbound call the app makes. AMR sign-in,
+   * model discovery, and the API proxy stay live — an intranet that blocks
+   * github.com may still have a paid AMR agent the team relies on.
+   */
+  closedNetwork?: ClosedNetworkStatus | null;
 }
 
 interface AmrModelProbe {
@@ -402,6 +413,23 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
   const env = deps.env ?? process.env;
   const { RUNTIME_DATA_DIR } = deps.paths;
   const { readAppConfig } = deps.appConfig;
+  const messageCenterBlocked = isClosedNetworkCapabilityDisabled(
+    deps.closedNetwork ?? null,
+    'message-center',
+  );
+  /**
+   * Answer a Message Center request without touching amr-api. Reads succeed
+   * with an empty page so a stale renderer renders "no messages" instead of an
+   * error toast; writes (mark-read) are refused, because pretending they landed
+   * upstream would be a lie.
+   */
+  function answerBlockedMessageCenter(req: Request, res: Response): void {
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      res.json({ messages: [], nextCursor: null, unreadCount: 0 });
+      return;
+    }
+    res.status(503).json({ error: 'closed_network_blocked' });
+  }
   const getPublicBaseUrl = deps.http.getPublicBaseUrl ?? ((req: Request) => {
     const proto = req.protocol || 'http';
     const host = req.get('host');
@@ -603,6 +631,7 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
   app.all('/api/integrations/vela/api-proxy/*splat', proxyAmrApiRequest);
 
   app.get('/api/integrations/vela/message-center-public/messages', async (req, res) => {
+    if (messageCenterBlocked) return answerBlockedMessageCenter(req, res);
     try {
       const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
       const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');
@@ -614,6 +643,7 @@ export function registerVelaRoutes(app: Express, deps: RegisterVelaRoutesDeps): 
   });
 
   app.all('/api/integrations/vela/message-center/*splat', async (req, res) => {
+    if (messageCenterBlocked) return answerBlockedMessageCenter(req, res);
     try {
       const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
       const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');
