@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, Dispatch, SetStateAction } from 'react';
 import { Button, VisuallyHidden } from '@open-design/components';
-import { isClosedNetworkCapabilityDisabled } from '@open-design/contracts';
 import type {
   AmrWalletSnapshot,
   WorkspaceCollabContext,
@@ -41,7 +40,7 @@ import {
 } from '../analytics/events';
 import { LOCALE_LABEL, LOCALES, useI18n } from '../i18n';
 import type { Locale } from '../i18n';
-import { useClosedNetworkStatus } from '../runtime/closed-network';
+import { useClosedNetworkCapability, useClosedNetworkStatus } from '../runtime/closed-network';
 import type { Dict } from '../i18n/types';
 import { AgentIcon } from './AgentIcon';
 import { AgentDiagnosticRow } from './AgentDiagnosticRow';
@@ -1522,8 +1521,11 @@ export function SettingsDialog({
 }: Props) {
   const { t, locale, setLocale } = useI18n();
   const analytics = useAnalytics();
+  // Read through the local hooks only. Settings is the largest screen in the
+  // app and the one place that renders the status object itself, so it must not
+  // also be the one place that depends on a cross-package runtime symbol.
   const closedNetwork = useClosedNetworkStatus();
-  const hideAutoUpdate = isClosedNetworkCapabilityDisabled(closedNetwork, 'auto-update');
+  const hideAutoUpdate = useClosedNetworkCapability('auto-update');
   // Backfill the fixed-origin base URL on mount too, so a config persisted with
   // an empty baseUrl (e.g. selected AIHubMix before this resolution existed)
   // isn't stuck blocking the live model fetch until the user re-selects the tab.
@@ -6026,17 +6028,17 @@ export function SettingsDialog({
                       would offer to undo an organization's network policy from
                       inside the app. Naming the source and path is what a user
                       filing "where did the share button go?" actually needs. */}
-                  {closedNetwork.enabled ? (
+                  {closedNetwork?.enabled === true ? (
                     <div data-testid="settings-closed-network">
                       <dt>{t('settings.closedNetworkTitle')}</dt>
                       <dd>
                         <div>{t('settings.closedNetworkOn')}</div>
                         <div className="hint">
-                          {closedNetwork.source === 'env'
+                          {closedNetwork?.source === 'env'
                             ? t('settings.closedNetworkSourceEnv')
                             : t('settings.closedNetworkSourceFlagFile')}
                         </div>
-                        {closedNetwork.flagPath ? (
+                        {closedNetwork?.flagPath ? (
                           <div className="hint">
                             {t('settings.closedNetworkFlagPath', {
                               path: closedNetwork.flagPath,

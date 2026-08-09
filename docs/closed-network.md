@@ -116,6 +116,26 @@ ignored, so a marker written for a newer build still parses on an older one.
   CSP at all today, so adding one has a wide blast radius and belongs in its own
   change.
 
+## Changing this? Check Settings
+
+Settings → About is the only surface that renders the status *object* rather
+than asking `useClosedNetworkCapability` for a boolean, so it is the only screen
+a malformed status can take down. Two rules keep that from happening again:
+
+- Read the status through `useClosedNetworkStatus()` (which floors to the off
+  state) and dereference it with optional chaining. Prefer the capability hook
+  wherever a boolean is enough.
+- Keep `apps/web/src/runtime/closed-network.tsx` free of runtime *value* imports
+  from `@open-design/contracts`. Types only. That module is mounted in the root
+  layout, so a resolution failure there would cost the app shell, not a badge.
+
+`apps/web/tests/components/SettingsDialog.closedNetwork.test.tsx` pins both.
+
+Verification for this feature is not complete without a **production** build:
+`pnpm --filter @open-design/web build`, then open Settings and click through
+every section with the flag both on and off. The jsdom suite renders Settings
+without the provider mounted, so it cannot see this class of fault on its own.
+
 ## Implementation map
 
 | Concern | Source |

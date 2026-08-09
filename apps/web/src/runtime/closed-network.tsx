@@ -8,12 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import {
-  CLOSED_NETWORK_DISABLED_STATUS,
-  isClosedNetworkCapabilityDisabled,
-  type ClosedNetworkCapability,
-  type ClosedNetworkStatus,
-} from '@open-design/contracts';
+import type { ClosedNetworkCapability, ClosedNetworkStatus } from '@open-design/contracts';
 
 /**
  * Closed-network mode ("폐쇄망 모드") for the renderer.
@@ -38,6 +33,32 @@ import {
 
 const CLOSED_NETWORK_ENDPOINT = '/api/closed-network';
 const CACHE_KEY = 'open-design:closed-network';
+
+/**
+ * The off state, and the capability predicate, defined locally on purpose.
+ *
+ * Types still come from `@open-design/contracts`, so renaming a capability or
+ * changing the status shape breaks typecheck — the contract is intact. What is
+ * deliberately NOT imported is the runtime *value*: this module is mounted in
+ * the root layout and consumed by Settings, so a resolution failure against the
+ * contracts bundle would take down the app shell rather than degrade one badge.
+ * The repo already applies this reasoning in `apps/desktop/src/main/closed-network.ts`
+ * and `apps/packaged/src/startup-telemetry.ts`, both of which replicate a
+ * constant instead of taking on a cross-package runtime dependency.
+ */
+const DISABLED_STATUS: ClosedNetworkStatus = {
+  enabled: false,
+  source: null,
+  flagPath: null,
+  disabled: [],
+};
+
+function capabilityDisabled(
+  status: ClosedNetworkStatus | null | undefined,
+  capability: ClosedNetworkCapability,
+): boolean {
+  return status?.enabled === true && status.disabled.includes(capability);
+}
 
 function readCachedStatus(): ClosedNetworkStatus | null {
   if (typeof window === 'undefined') return null;
@@ -68,7 +89,7 @@ function normalizeStatus(value: unknown): ClosedNetworkStatus | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
   if (typeof raw.enabled !== 'boolean') return null;
-  if (!raw.enabled) return CLOSED_NETWORK_DISABLED_STATUS;
+  if (!raw.enabled) return DISABLED_STATUS;
   const disabled = Array.isArray(raw.disabled)
     ? raw.disabled.filter((entry): entry is ClosedNetworkCapability => typeof entry === 'string')
     : [];
@@ -103,11 +124,11 @@ export function loadClosedNetworkStatus(): Promise<ClosedNetworkStatus | null> {
   return inflight;
 }
 
-const ClosedNetworkContext = createContext<ClosedNetworkStatus>(CLOSED_NETWORK_DISABLED_STATUS);
+const ClosedNetworkContext = createContext<ClosedNetworkStatus>(DISABLED_STATUS);
 
 export function ClosedNetworkProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<ClosedNetworkStatus>(
-    () => readCachedStatus() ?? CLOSED_NETWORK_DISABLED_STATUS,
+    () => readCachedStatus() ?? DISABLED_STATUS,
   );
 
   useEffect(() => {
@@ -132,7 +153,11 @@ export function ClosedNetworkProvider({ children }: { children: ReactNode }) {
 
 /** The full status. Use this for the read-only Settings badge; prefer the capability hook for guards. */
 export function useClosedNetworkStatus(): ClosedNetworkStatus {
-  return useContext(ClosedNetworkContext);
+  // Never hand back a bare context read. A consumer that dereferences the
+  // status directly (the Settings badge does) must not be able to throw because
+  // something upstream produced an undefined value — mirrors `useI18n()`'s
+  // `?? FALLBACK_I18N` in `src/i18n/index.tsx`.
+  return useContext(ClosedNetworkContext) ?? DISABLED_STATUS;
 }
 
 /**
@@ -143,8 +168,5 @@ export function useClosedNetworkStatus(): ClosedNetworkStatus {
  */
 export function useClosedNetworkCapability(capability: ClosedNetworkCapability): boolean {
   const status = useContext(ClosedNetworkContext);
-  return useMemo(
-    () => isClosedNetworkCapabilityDisabled(status, capability),
-    [status, capability],
-  );
+  return useMemo(() => capabilityDisabled(status, capability), [status, capability]);
 }
